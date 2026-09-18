@@ -274,6 +274,74 @@ section.block {
   color: var(--ink-soft);
 }
 
+/* ---------- 대회 카드 (두 개 대회) ---------- */
+.event-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.event-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 26px 24px;
+  background: #fff;
+}
+
+.event-card h3 {
+  font-size: 1.2rem;
+  line-height: 1.4;
+  margin: 14px 0 4px;
+}
+
+.event-card .motto {
+  color: var(--clay);
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin: 0 0 18px;
+}
+
+.event-dl {
+  margin: 0 0 18px;
+  padding: 16px;
+  background: #F7F6F2;
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 14px;
+  font-size: 0.88rem;
+}
+
+.event-dl dt {
+  font-family: var(--font-mono);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.event-dl dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.event-card h4 {
+  font-size: 0.85rem;
+  color: var(--navy);
+  margin: 0 0 10px;
+}
+
+.event-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.event-list li { margin-bottom: 6px; }
+
+@media (max-width: 760px) {
+  .event-grid { grid-template-columns: 1fr; }
+}
+
 /* ---------- 일정표 ---------- */
 .timeline {
   border-top: 1px solid var(--line);
