@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>참가 신청 — 학교스포츠클럽대회</title>
-<meta name="description" content="학교스포츠클럽대회 참가 신청">
+<title>참가 신청 — 2026 제천 학교스포츠클럽 대회</title>
+<meta name="description" content="트랙마라톤 축제 및 충청북도교육감기 육상대회 참가 신청">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,52 +23,57 @@
 <section class="block">
   <div class="wrap">
     <span class="bib">참가 신청</span>
-    <h2 style="margin-top:14px;">학교스포츠클럽대회 참가 신청</h2>
-    <p class="sub">아래 양식을 작성해 제출하면 접수가 완료됩니다. 접수 확인 문자는 별도로 발송되지 않습니다.</p>
+    <h2 style="margin-top:14px;">대회 참가 신청</h2>
+    <p class="sub">대회를 먼저 선택하면 해당 대회의 종목/참가유형 목록이 나타납니다.</p>
 
     <div class="notice-card">
       <h2>신청 전 확인해 주세요</h2>
       <ul>
-        <li>접수 기간: 2026. 03. 16(월) ~ 03. 27(금) 18:00까지</li>
-        <li>학급당 종목별 1개 팀만 신청 가능합니다.</li>
+        <li>트랙마라톤 축제 접수: 2026. 09. 21(월) ~ 09. 29(화)</li>
+        <li>충청북도교육감기 육상대회 접수: 2026. 09. 21(월) ~ 10. 14(수)</li>
         <li>제출 후 수정이 필요하면 같은 내용으로 다시 제출해 주세요.</li>
         <li>문의사항은 체육교육팀으로 연락 바랍니다.</li>
       </ul>
     </div>
 
     <form id="applyForm" class="apply-form">
-      <div class="form-row">
-        <div class="field">
-          <label for="grade">학년 *</label>
-          <select id="grade" name="grade" required>
-            <option value="">선택</option>
-            <option>1학년</option>
-            <option>2학년</option>
-            <option>3학년</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="classNo">반 *</label>
-          <input type="text" id="classNo" name="classNo" placeholder="예: 3반" required>
-        </div>
+      <div class="field">
+        <label for="competition">참가 대회 *</label>
+        <select id="competition" name="competition" required>
+          <option value="">선택</option>
+          <option value="트랙마라톤 축제">2026. 제천 학교스포츠클럽 트랙마라톤 축제</option>
+          <option value="충북교육감기 육상대회">제48회 충청북도교육감기 육상대회</option>
+        </select>
       </div>
 
       <div class="field">
-        <label for="sport">신청 종목 *</label>
-        <select id="sport" name="sport" required>
+        <label for="sport">종목 / 참가유형 *</label>
+        <select id="sport" name="sport" required disabled>
+          <option value="">먼저 대회를 선택하세요</option>
+        </select>
+      </div>
+
+      <div class="field" id="preferredDatesField" style="display:none;">
+        <label for="preferredDates">희망 참가일 *</label>
+        <select id="preferredDates" name="preferredDates">
           <option value="">선택</option>
-          <option>축구</option>
-          <option>배드민턴</option>
-          <option>피구</option>
-          <option>줄넘기</option>
-          <option>탁구</option>
-          <option>육상</option>
         </select>
       </div>
 
       <div class="form-row">
         <div class="field">
-          <label for="leaderName">대표자 이름 *</label>
+          <label for="school">학교명 *</label>
+          <input type="text" id="school" name="school" placeholder="예: 제천OO초등학교" required>
+        </div>
+        <div class="field">
+          <label for="grade">학년 / 구분 *</label>
+          <input type="text" id="grade" name="grade" placeholder="예: 5학년, 교직원" required>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="leaderName">대표자(신청자) 이름 *</label>
           <input type="text" id="leaderName" name="leaderName" required>
         </div>
         <div class="field">
@@ -78,8 +83,8 @@
       </div>
 
       <div class="field">
-        <label for="members">팀원 명단 (선택)</label>
-        <textarea id="members" name="members" rows="3" placeholder="예: 홍길동, 김철수, 이영희"></textarea>
+        <label for="members">참가자 명단 (선택)</label>
+        <textarea id="members" name="members" rows="3" placeholder="여러 명일 경우 이름을 쉼표로 구분해 적어주세요"></textarea>
       </div>
 
       <div class="field">
@@ -95,7 +100,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>마이스포츠클럽 · 학교스포츠클럽대회</span>
+    <span>마이스포츠클럽 · 2026 제천 학교스포츠클럽 대회</span>
     <span><a href="admin.html" style="color:inherit;">관리자</a></span>
   </div>
 </footer>

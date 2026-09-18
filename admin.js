@@ -20,7 +20,7 @@ const tableBody = document.getElementById("appTableBody");
 const countLabel = document.getElementById("countLabel");
 
 let allRows = [];
-let activeSport = "전체";
+let activeCompetition = "전체";
 
 function showView(view) {
   loginView.style.display = view === "login" ? "" : "none";
@@ -45,14 +45,14 @@ logoutBtnDenied.addEventListener("click", doLogout);
 refreshBtn.addEventListener("click", loadApplications);
 
 function renderFilters() {
-  const sports = ["전체", ...Array.from(new Set(allRows.map((r) => r.sport)))];
+  const competitions = ["전체", ...Array.from(new Set(allRows.map((r) => r.competition).filter(Boolean)))];
   filterRow.innerHTML = "";
-  sports.forEach((sport) => {
+  competitions.forEach((comp) => {
     const btn = document.createElement("button");
-    btn.className = "filter-btn" + (sport === activeSport ? " active" : "");
-    btn.textContent = sport;
+    btn.className = "filter-btn" + (comp === activeCompetition ? " active" : "");
+    btn.textContent = comp;
     btn.addEventListener("click", () => {
-      activeSport = sport;
+      activeCompetition = comp;
       renderFilters();
       renderTable();
     });
@@ -62,7 +62,7 @@ function renderFilters() {
 
 function renderTable() {
   const rows =
-    activeSport === "전체" ? allRows : allRows.filter((r) => r.sport === activeSport);
+    activeCompetition === "전체" ? allRows : allRows.filter((r) => r.competition === activeCompetition);
 
   countLabel.textContent = `총 ${rows.length}건`;
 
@@ -72,8 +72,11 @@ function renderTable() {
       return `
         <tr>
           <td>${date}</td>
-          <td>${r.grade || ""} ${r.class_no || ""}</td>
+          <td>${r.competition || ""}</td>
           <td>${r.sport || ""}</td>
+          <td>${r.preferred_dates || ""}</td>
+          <td>${r.class_no || ""}</td>
+          <td>${r.grade || ""}</td>
           <td>${r.leader_name || ""}</td>
           <td>${r.contact || ""}</td>
           <td>${r.members || ""}</td>

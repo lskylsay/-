@@ -1,7 +1,80 @@
-// 신청 폼 제출 로직 — config.js 의 값을 읽어 Supabase에 바로 저장합니다.
+// 신청 폼 제출 로직
+// - 대회를 선택하면 종목/참가유형 select가 자동으로 채워집니다.
+// - 육상대회는 참가 가능일을 추가로 선택합니다.
+// - 최종 데이터는 config.js 의 값을 이용해 Supabase에 바로 저장됩니다.
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+// 대회별 종목/참가유형 목록
+const SPORT_OPTIONS = {
+  "트랙마라톤 축제": [
+    "3km 마라톤 (초등학교 4·5·6학년 및 초등학교 교직원부)",
+    "5km 마라톤 (중고등학생 및 중고등학교 교직원)",
+  ],
+  "충북교육감기 육상대회": [
+    "숙박형",
+    "1일 왕복형",
+  ],
+};
+
+// 육상대회의 희망 참가일 목록 (참가유형에 따라 다름)
+const DATE_OPTIONS = {
+  "숙박형": ["11.9(월)", "11.10(화)", "11.11(수)", "11.9(월)~11.10(화)", "11.10(화)~11.11(수)", "11.9(월)~11.11(수) 전체"],
+  "1일 왕복형": ["11.10(화)", "11.11(수)", "11.12(목)", "11.10(화)~11.11(수)", "11.11(수)~11.12(목)", "11.10(화)~11.12(목) 전체"],
+};
+
+const competitionSelect = document.getElementById("competition");
+const sportSelect = document.getElementById("sport");
+const preferredDatesField = document.getElementById("preferredDatesField");
+const preferredDatesSelect = document.getElementById("preferredDates");
+
+function fillSelect(select, options, placeholder) {
+  select.innerHTML = "";
+  const ph = document.createElement("option");
+  ph.value = "";
+  ph.textContent = placeholder;
+  select.appendChild(ph);
+  options.forEach((opt) => {
+    const o = document.createElement("option");
+    o.value = opt;
+    o.textContent = opt;
+    select.appendChild(o);
+  });
+}
+
+competitionSelect.addEventListener("change", () => {
+  const comp = competitionSelect.value;
+  const sports = SPORT_OPTIONS[comp] || [];
+
+  if (sports.length) {
+    fillSelect(sportSelect, sports, "선택");
+    sportSelect.disabled = false;
+  } else {
+    fillSelect(sportSelect, [], "먼저 대회를 선택하세요");
+    sportSelect.disabled = true;
+  }
+
+  preferredDatesField.style.display = "none";
+  preferredDatesSelect.required = false;
+  fillSelect(preferredDatesSelect, [], "선택");
+});
+
+sportSelect.addEventListener("change", () => {
+  const sport = sportSelect.value;
+  const dates = DATE_OPTIONS[sport];
+
+  if (dates) {
+    fillSelect(preferredDatesSelect, dates, "선택");
+    preferredDatesField.style.display = "";
+    preferredDatesSelect.required = true;
+  } else {
+    preferredDatesField.style.display = "none";
+    preferredDatesSelect.required = false;
+    fillSelect(preferredDatesSelect, [], "선택");
+  }
+});
 
 const form = document.getElementById("applyForm");
 const statusEl = document.getElementById("formStatus");
@@ -16,9 +89,11 @@ form.addEventListener("submit", async (e) => {
 
   const data = new FormData(form);
   const payload = {
-    grade: data.get("grade"),
-    class_no: data.get("classNo"),
+    competition: data.get("competition"),
     sport: data.get("sport"),
+    preferred_dates: data.get("preferredDates") || null,
+    class_no: data.get("school"),
+    grade: data.get("grade"),
     leader_name: data.get("leaderName"),
     contact: data.get("contact"),
     members: data.get("members") || null,
@@ -38,6 +113,9 @@ form.addEventListener("submit", async (e) => {
   statusEl.textContent = "신청이 접수되었습니다. 감사합니다!";
   statusEl.classList.add("success");
   form.reset();
+  fillSelect(sportSelect, [], "먼저 대회를 선택하세요");
+  sportSelect.disabled = true;
+  preferredDatesField.style.display = "none";
   submitBtn.disabled = false;
   submitBtn.textContent = "신청서 제출";
 });
