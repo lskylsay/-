@@ -11,6 +11,6 @@
       → Supabase 테이블의 RLS 정책에 설정한 이메일과 반드시 동일해야 합니다.
    =================================================================== */
 
-window.SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co";
-window.SUPABASE_ANON_KEY = "YOUR_ANON_PUBLIC_KEY";
-window.ADMIN_EMAIL = "your-github-email@example.com";
+window.SUPABASE_URL = "https://whlkngqhbszxxdmhnilx.supabase.co";
+window.SUPABASE_ANON_KEY = "sb_publishable_c-yL67asfZua8fEBCF2yoA_2h3ViptG";
+window.ADMIN_EMAIL = "dkjy0906@gmail.com";
