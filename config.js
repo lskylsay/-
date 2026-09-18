@@ -12,5 +12,5 @@
    =================================================================== */
 
 window.SUPABASE_URL = "https://whlkngqhbszxxdmhnilx.supabase.co";
-window.SUPABASE_ANON_KEY = "sb_publishable_c-yL67asfZua8fEBCF2yoA_2h3ViptG";
+window.SUPABASE_ANON_KEY = "sb_publishable_c-yL67asfZua8fEBCF2yoA_2h3VitpG";
 window.ADMIN_EMAIL = "dkjy0906@gmail.com";
