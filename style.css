@@ -150,6 +150,20 @@ a { color: inherit; }
   letter-spacing: -0.02em;
 }
 
+.hero-events {
+  margin: 0 0 20px;
+  padding-left: 22px;
+  color: #E4E8F0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.8;
+}
+
+.hero-events li::marker {
+  color: var(--gold);
+  font-family: var(--font-mono);
+}
+
 .hero p.lede {
   font-size: 1.05rem;
   color: #C9D0DE;
