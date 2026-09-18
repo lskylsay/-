@@ -441,6 +441,62 @@ section.block {
   border-top: 1px solid var(--line);
 }
 
+/* ---------- 신청 폼 ---------- */
+.apply-form {
+  max-width: 560px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.field {
+  margin-bottom: 18px;
+}
+
+.field label {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--navy);
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--clay);
+}
+
+.form-status {
+  margin-top: 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.form-status.success { color: var(--pine); }
+.form-status.error { color: var(--clay-dark); }
+
+@media (max-width: 560px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+
 /* ---------- 푸터 ---------- */
 .site-footer {
   background: var(--navy);
