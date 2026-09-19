@@ -114,18 +114,23 @@ a { color: inherit; }
 
 /* ---------- 히어로 ---------- */
 .hero {
-  padding: 72px 0 56px;
+  padding: 88px 0 64px;
   background: var(--navy);
   color: var(--paper);
   position: relative;
   overflow: hidden;
 }
 
+.hero-photo {
+  background-image:
+    linear-gradient(180deg, rgba(15,23,42,0.55) 0%, rgba(15,23,42,0.82) 65%, rgba(15,23,42,0.94) 100%),
+    url('hero-runners.jpg');
+  background-size: cover;
+  background-position: center 35%;
+}
+
 .hero .wrap {
-  display: grid;
-  grid-template-columns: 1.3fr 0.9fr;
-  gap: 40px;
-  align-items: end;
+  display: block;
 }
 
 .bib {
@@ -134,29 +139,40 @@ a { color: inherit; }
   background: var(--clay);
   color: #fff;
   font-weight: 700;
-  font-size: 0.85rem;
-  padding: 5px 12px;
+  font-size: 1rem;
+  padding: 7px 16px;
   border-radius: 3px;
   transform: rotate(-2deg);
-  margin-bottom: 20px;
+  margin-bottom: 22px;
   letter-spacing: 0.02em;
 }
 
 .hero h1 {
-  font-size: clamp(1.9rem, 4.2vw, 3rem);
+  font-size: clamp(2.1rem, 4.6vw, 3.4rem);
   font-weight: 900;
   line-height: 1.25;
-  margin: 0 0 18px;
+  margin: 0 0 28px;
   letter-spacing: -0.02em;
+  text-shadow: 0 2px 18px rgba(0,0,0,0.35);
+}
+
+.hero-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 40px;
+  flex-wrap: wrap;
+  margin-bottom: 32px;
 }
 
 .hero-events {
-  margin: 0 0 20px;
-  padding-left: 22px;
-  color: #E4E8F0;
-  font-size: 1.02rem;
+  margin: 0;
+  padding-left: 24px;
+  color: #fff;
+  font-size: 1.3rem;
   font-weight: 700;
-  line-height: 1.8;
+  line-height: 1.9;
+  flex: 1 1 320px;
 }
 
 .hero-events li::marker {
@@ -165,10 +181,14 @@ a { color: inherit; }
 }
 
 .hero p.lede {
-  font-size: 1.05rem;
-  color: #C9D0DE;
-  max-width: 46ch;
-  margin: 0 0 28px;
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: #F0F2F7;
+  max-width: 40ch;
+  margin: 0;
+  flex: 1 1 320px;
+  text-align: right;
+  line-height: 1.6;
 }
 
 .cta-row {
@@ -202,38 +222,11 @@ a { color: inherit; }
 }
 .btn-ghost:hover { border-color: #fff; }
 
-.hero-schedule {
-  background: var(--navy-soft);
-  border-radius: 6px;
-  padding: 22px 24px;
-  border: 1px solid rgba(255,255,255,0.08);
-}
-
-.hero-schedule h2 {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--gold);
-  margin: 0 0 14px;
-}
-
-.hero-schedule dl {
-  margin: 0;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 10px 14px;
-  font-size: 0.92rem;
-}
-
-.hero-schedule dt {
-  color: #A9B2C4;
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  white-space: nowrap;
-}
-
-.hero-schedule dd {
-  margin: 0;
-  font-weight: 500;
+@media (max-width: 640px) {
+  .hero p.lede {
+    text-align: left;
+    max-width: none;
+  }
 }
 
 /* ---------- 섹션 공통 ---------- */
@@ -597,9 +590,6 @@ section.block {
 
 /* ---------- 반응형 ---------- */
 @media (max-width: 720px) {
-  .hero .wrap {
-    grid-template-columns: 1fr;
-  }
   .site-nav {
     width: 100%;
     justify-content: flex-start;
