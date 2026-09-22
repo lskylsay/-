@@ -222,6 +222,13 @@ a { color: inherit; }
 }
 .btn-ghost:hover { border-color: #fff; }
 
+.btn-outline {
+  background: transparent;
+  color: var(--navy);
+  border: 1.5px solid var(--line);
+}
+.btn-outline:hover { border-color: var(--clay); color: var(--clay); }
+
 @media (max-width: 640px) {
   .hero p.lede {
     text-align: left;
