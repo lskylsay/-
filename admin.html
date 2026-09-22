@@ -13,7 +13,7 @@
   <div class="wrap">
     <a href="index.html" class="brand">마이스포츠클럽<span>.</span></a>
     <nav class="site-nav">
-      <a href="index.html">홈</a>
+      <a href="contest.html">홈</a>
       <a href="apply.html">참가 신청</a>
       <a href="guidelines.html">대회요강</a>
       <a href="results.html">대회 결과</a>
@@ -44,6 +44,7 @@
         <button type="button" class="filter-btn active" id="adminRosterTabBtn">대회별 신청자명단관리</button>
         <button type="button" class="filter-btn" id="adminResultsTabBtn">대회결과관리</button>
         <button type="button" class="filter-btn" id="adminGuidelinesTabBtn">대회요강관리</button>
+        <button type="button" class="filter-btn" id="adminSchoolpeTabBtn">학교체육업무지원 관리</button>
       </div>
 
       <!-- 대회별 신청자명단관리 (개인 신청 + 교사 일괄 신청 통합) -->
@@ -185,6 +186,49 @@
 
         <p id="gCountLabel" class="sub" style="margin-bottom:12px;"></p>
         <div id="gListContainer"></div>
+      </div>
+
+      <!-- 학교체육업무지원 관리 -->
+      <div id="schoolpeAdminSection" style="display:none;">
+        <div style="display:flex; gap:10px; margin-bottom:24px;">
+          <button id="schoolpeRefreshBtn" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);">새로고침</button>
+          <button id="logoutBtn5" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);">로그아웃</button>
+        </div>
+
+        <div style="margin-bottom:28px;">
+          <label class="field-label">새 게시물 등록</label>
+          <div class="form-row">
+            <div class="field">
+              <label for="spCategory">게시판 *</label>
+              <select id="spCategory">
+                <option value="">선택</option>
+                <option value="plan">가. 학교체육활성화 기본계획</option>
+                <option value="notice">나. 공지사항</option>
+                <option value="club">다. 학교스포츠클럽대회</option>
+                <option value="youth">라. 전국소년체육대회</option>
+                <option value="national">마. 전국체육대회</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="spTitle">제목 *</label>
+              <input type="text" id="spTitle">
+            </div>
+          </div>
+          <div class="field">
+            <label for="spContent">내용 (선택, 공지사항 등 본문이 있는 경우)</label>
+            <textarea id="spContent" rows="4"></textarea>
+          </div>
+          <div class="field">
+            <label for="spFile">첨부파일 (선택)</label>
+            <input type="file" id="spFile">
+          </div>
+          <button type="button" class="btn btn-primary" id="spUploadBtn">등록</button>
+          <p id="spUploadStatus" class="form-status"></p>
+        </div>
+
+        <div class="filter-row" id="spFilterRow"></div>
+        <p id="spCountLabel" class="sub" style="margin-bottom:12px;"></p>
+        <div id="spListContainer"></div>
       </div>
     </div>
   </div>
