@@ -57,6 +57,20 @@ function fillSelect(select, options, placeholder) {
   });
 }
 
+// 다운로드용 개인정보 동의서 양식의 "수집 목적" 문구와 동일한 표현을 사용합니다.
+const COMPETITION_SHORT_LABELS = {
+  "트랙마라톤 축제": "트랙마라톤 축제",
+  "충북교육감기 육상대회": "충청북도교육감기 육상대회",
+};
+
+function updatePrivacyPurpose() {
+  const comp = competitionSelect.value;
+  const purposeEl = document.getElementById("privacyPurposeText");
+  purposeEl.textContent = comp
+    ? `학교스포츠클럽 대회(${COMPETITION_SHORT_LABELS[comp]}) 참가 신청 접수 및 대회 운영`
+    : "학교스포츠클럽 대회 참가 신청 접수 및 대회 운영";
+}
+
 competitionSelect.addEventListener("change", () => {
   const comp = competitionSelect.value;
   const sports = SPORT_OPTIONS[comp] || [];
@@ -74,6 +88,7 @@ competitionSelect.addEventListener("change", () => {
   fillSelect(preferredDatesSelect, [], "선택");
 
   updateModeToggleVisibility();
+  updatePrivacyPurpose();
 });
 
 sportSelect.addEventListener("change", () => {
