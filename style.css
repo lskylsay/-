@@ -784,6 +784,50 @@ section.block {
   .gateway-grid { grid-template-columns: 1fr; }
 }
 
+/* ---------- 드래그 앤 드롭 파일 첨부 ---------- */
+.dropzone {
+  border: 2px dashed var(--line);
+  border-radius: 6px;
+  padding: 26px 16px;
+  text-align: center;
+  cursor: pointer;
+  background: #FAFAF8;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dropzone:hover,
+.dropzone:focus-visible {
+  border-color: var(--clay);
+  outline: none;
+}
+
+.dropzone.dragover {
+  border-color: var(--clay);
+  background: #FBF0EC;
+}
+
+.dropzone.has-file {
+  border-color: var(--pine);
+  background: #F1F5F1;
+}
+
+.dropzone-input {
+  display: none;
+}
+
+.dropzone-text {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+}
+
+.dropzone-text .dropzone-sub {
+  display: block;
+  font-size: 0.76rem;
+  margin-top: 4px;
+  color: #B0B5BE;
+}
+
 @media (max-width: 560px) {
   .board-row {
     flex-direction: column;
