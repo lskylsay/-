@@ -81,6 +81,7 @@ function renderTable() {
           <td>${r.contact || ""}</td>
           <td>${r.members || ""}</td>
           <td>${r.note || ""}</td>
+          <td style="font-family:var(--font-mono); font-size:0.82rem; color:var(--ink-soft);">${r.ip_address || ""}</td>
         </tr>`;
     })
     .join("");
