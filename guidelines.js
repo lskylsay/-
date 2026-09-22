@@ -28,10 +28,29 @@ async function loadGuidelines() {
     return;
   }
 
+function isImageFile(name) {
+  return /\.(png|jpe?g|gif|webp)$/i.test(name || "");
+}
+
   listEl.innerHTML = data
     .map((g) => {
       const date = new Date(g.created_at).toLocaleDateString("ko-KR");
       const titleText = g.title || g.file_name || "제목 없음";
+
+      if (g.file_path && isImageFile(g.file_name)) {
+        return `
+          <div class="board-photo-row">
+            <div class="board-photo-head">
+              <strong>${titleText}</strong>
+              <span class="sub" style="margin:0;">${date}</span>
+            </div>
+            ${g.note ? `<p class="board-row-note">${g.note}</p>` : ""}
+            <a href="${fileUrl(g.file_path)}" target="_blank" rel="noopener">
+              <img src="${fileUrl(g.file_path)}" alt="${titleText}" class="board-photo">
+            </a>
+          </div>`;
+      }
+
       const titleHtml = `<a href="${fileUrl(g.file_path)}" target="_blank" rel="noopener" style="color:inherit; text-decoration:none;">${titleText}</a>`;
       return `
         <div class="board-row">
