@@ -132,36 +132,45 @@ supabase.auth.onAuthStateChange(() => {
 const adminIndividualTabBtn = document.getElementById("adminIndividualTabBtn");
 const adminBulkTabBtn = document.getElementById("adminBulkTabBtn");
 const adminResultsTabBtn = document.getElementById("adminResultsTabBtn");
+const adminGuidelinesTabBtn = document.getElementById("adminGuidelinesTabBtn");
 const individualAdminSection = document.getElementById("individualAdminSection");
 const bulkAdminSection = document.getElementById("bulkAdminSection");
 const resultsAdminSection = document.getElementById("resultsAdminSection");
+const guidelinesAdminSection = document.getElementById("guidelinesAdminSection");
 const logoutBtn2 = document.getElementById("logoutBtn2");
 const logoutBtn3 = document.getElementById("logoutBtn3");
+const logoutBtn4 = document.getElementById("logoutBtn4");
 const bulkRefreshBtn = document.getElementById("bulkRefreshBtn");
 const bulkCountLabel = document.getElementById("bulkCountLabel");
 const bulkListContainer = document.getElementById("bulkListContainer");
 
 let bulkLoaded = false;
 let resultsLoaded = false;
+let guidelinesLoaded = false;
 
 function showAdminTab(tab) {
   adminIndividualTabBtn.classList.toggle("active", tab === "individual");
   adminBulkTabBtn.classList.toggle("active", tab === "bulk");
   adminResultsTabBtn.classList.toggle("active", tab === "results");
+  adminGuidelinesTabBtn.classList.toggle("active", tab === "guidelines");
   individualAdminSection.style.display = tab === "individual" ? "" : "none";
   bulkAdminSection.style.display = tab === "bulk" ? "" : "none";
   resultsAdminSection.style.display = tab === "results" ? "" : "none";
+  guidelinesAdminSection.style.display = tab === "guidelines" ? "" : "none";
 
   if (tab === "bulk" && !bulkLoaded) loadBulkApplications();
   if (tab === "results" && !resultsLoaded) loadResultsAdmin();
+  if (tab === "guidelines" && !guidelinesLoaded) loadGuidelinesAdmin();
 }
 
 adminIndividualTabBtn.addEventListener("click", () => showAdminTab("individual"));
 adminBulkTabBtn.addEventListener("click", () => showAdminTab("bulk"));
 adminResultsTabBtn.addEventListener("click", () => showAdminTab("results"));
+adminGuidelinesTabBtn.addEventListener("click", () => showAdminTab("guidelines"));
 
 logoutBtn2.addEventListener("click", doLogout);
 logoutBtn3.addEventListener("click", doLogout);
+logoutBtn4.addEventListener("click", doLogout);
 bulkRefreshBtn.addEventListener("click", loadBulkApplications);
 
 function renderBulkList(rows) {
@@ -405,6 +414,123 @@ resultsUploadBtn.addEventListener("click", async () => {
     resultsUploadStatus.textContent = "파일을 읽는 중 오류가 발생했습니다: " + err.message;
     resultsUploadStatus.className = "form-status error";
   }
+});
+
+/* ============ 대회요강 관리 ============ */
+
+const guidelinesRefreshBtn = document.getElementById("guidelinesRefreshBtn");
+const gCountLabel = document.getElementById("gCountLabel");
+const gListContainer = document.getElementById("gListContainer");
+const gTitle = document.getElementById("gTitle");
+const gFile = document.getElementById("gFile");
+const gNote = document.getElementById("gNote");
+const gUploadBtn = document.getElementById("gUploadBtn");
+const gUploadStatus = document.getElementById("gUploadStatus");
+
+guidelinesRefreshBtn.addEventListener("click", loadGuidelinesAdmin);
+
+function renderGuidelinesAdminList(rows) {
+  gCountLabel.textContent = `총 ${rows.length}건`;
+
+  gListContainer.innerHTML = rows
+    .map((g, idx) => {
+      const date = new Date(g.created_at).toLocaleString("ko-KR");
+      return `
+        <div class="board-row">
+          <div class="board-row-main">
+            <strong>${g.title || g.file_name || "제목 없음"}</strong>
+            ${g.note ? `<p class="board-row-note">${g.note}</p>` : ""}
+            <p class="board-row-note">${date} · ${g.file_name || ""}</p>
+          </div>
+          <div class="board-row-side">
+            <button type="button" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);" data-idx="${idx}" data-action="delete">삭제</button>
+          </div>
+        </div>`;
+    })
+    .join("");
+
+  gListContainer.querySelectorAll('[data-action="delete"]').forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = rows[Number(btn.dataset.idx)];
+      if (!confirm(`"${row.title || row.file_name}" 문서를 삭제할까요?`)) return;
+
+      await supabase.storage.from("guideline-files").remove([row.file_path]);
+      const { error } = await supabase.from("guidelines").delete().eq("id", row.id);
+
+      if (error) {
+        alert("삭제 실패: " + error.message);
+        return;
+      }
+      loadGuidelinesAdmin();
+    });
+  });
+}
+
+async function loadGuidelinesAdmin() {
+  const { data, error } = await supabase
+    .from("guidelines")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    gCountLabel.textContent = "불러오기 실패: " + error.message;
+    return;
+  }
+
+  guidelinesLoaded = true;
+  renderGuidelinesAdminList(data || []);
+}
+
+gUploadBtn.addEventListener("click", async () => {
+  const title = gTitle.value.trim();
+  const file = gFile.files[0];
+  const note = gNote.value.trim();
+
+  if (!title || !file) {
+    gUploadStatus.textContent = "제목과 파일을 모두 입력해 주세요.";
+    gUploadStatus.className = "form-status error";
+    return;
+  }
+
+  gUploadBtn.disabled = true;
+  gUploadStatus.textContent = "업로드 중…";
+  gUploadStatus.className = "form-status";
+
+  const filePath = `${Date.now()}_${file.name}`;
+  const { error: uploadError } = await supabase.storage
+    .from("guideline-files")
+    .upload(filePath, file);
+
+  if (uploadError) {
+    gUploadBtn.disabled = false;
+    gUploadStatus.textContent = "파일 업로드 실패: " + uploadError.message;
+    gUploadStatus.className = "form-status error";
+    return;
+  }
+
+  const { error } = await supabase.from("guidelines").insert([
+    {
+      title,
+      note: note || null,
+      file_path: filePath,
+      file_name: file.name,
+    },
+  ]);
+
+  gUploadBtn.disabled = false;
+
+  if (error) {
+    gUploadStatus.textContent = "등록 실패: " + error.message;
+    gUploadStatus.className = "form-status error";
+    return;
+  }
+
+  gUploadStatus.textContent = "업로드되었습니다.";
+  gUploadStatus.className = "form-status success";
+  gTitle.value = "";
+  gNote.value = "";
+  gFile.value = "";
+  loadGuidelinesAdmin();
 });
 
 checkAuthAndRender();
