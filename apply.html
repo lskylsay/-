@@ -93,6 +93,28 @@
         <textarea id="note" name="note" rows="2"></textarea>
       </div>
 
+      <div class="privacy-box">
+        <h4>개인정보 수집·이용 동의 (필수)</h4>
+        <dl class="privacy-dl">
+          <dt>수집 기관</dt>
+          <dd>충청북도제천교육지원청</dd>
+          <dt>수집 목적</dt>
+          <dd>학교스포츠클럽 대회 참가 신청 접수 및 대회 운영</dd>
+          <dt>수집 항목</dt>
+          <dd>학교명, 학년/구분, 대표자 성명, 연락처, 참가자 명단, 비고, 접속 IP주소</dd>
+          <dt>보유·이용 기간</dt>
+          <dd>대회 종료일로부터 1개월간 보관 후 파기</dd>
+        </dl>
+        <p class="privacy-note">
+          귀하는 개인정보 수집·이용에 동의하지 않을 권리가 있습니다.
+          다만 동의하지 않으실 경우 대회 참가 신청 접수가 제한됩니다.
+        </p>
+        <label class="checkbox-label">
+          <input type="checkbox" id="privacyConsent" name="privacyConsent" required>
+          위 개인정보 수집 및 이용에 동의합니다.
+        </label>
+      </div>
+
       <button type="submit" class="btn btn-primary" id="submitBtn">신청서 제출</button>
       <p id="formStatus" class="form-status" role="status" aria-live="polite"></p>
     </form>
