@@ -106,7 +106,28 @@
       <div id="bulkFields" style="display:none;">
         <div class="bib" style="margin-bottom:16px; background:var(--pine);">학교 단위 일괄 신청</div>
 
-        <div class="form-row">
+        <div class="bulk-step">
+          <span class="bulk-step-num">1</span>
+          <div>
+            <h4>참가신청서 양식 다운로드</h4>
+            <p>아래 양식을 내려받아 참가자 명단을 작성해 주세요.</p>
+            <a href="marathon-application-template.xlsx" download class="btn btn-outline">
+              참가신청서 양식 다운로드 (.xlsx)
+            </a>
+          </div>
+        </div>
+
+        <div class="bulk-step">
+          <span class="bulk-step-num">2</span>
+          <div>
+            <h4>작성한 파일 업로드</h4>
+            <p>작성을 마친 엑셀 파일을 그대로 업로드해 주세요.</p>
+            <input type="file" id="bulkFile" accept=".xlsx,.xls">
+            <p id="bulkFileName" class="sub" style="margin:8px 0 0;"></p>
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-top:8px;">
           <div class="field">
             <label for="bulkSchool">학교명 *</label>
             <input type="text" id="bulkSchool" placeholder="예: 제천OO초등학교">
@@ -129,40 +150,20 @@
         </div>
 
         <div class="field">
-          <label for="bulkCapacity">신청가능인원 (선택)</label>
+          <label for="bulkCapacity">신청인원 (선택)</label>
           <input type="text" id="bulkCapacity" placeholder="예: 20명">
         </div>
 
         <div class="bulk-note-box">
-          <p>참가자 명단에 포함된 모든 인원은 아래 사항을 확인·동의한 것으로 간주합니다.</p>
+          <p>참가자 개인정보 관련 안내</p>
           <ul>
-            <li>심장질환, 호흡기 질환 등 특별한 지병이 없음</li>
-            <li>신청자는 학교 내 달리기 및 걷기 사전연습에 참여함</li>
+            <li>참가자 개인정보 수집·이용 동의서는 <strong>학교에서 자체 보관</strong>합니다 (본 사이트에 별도 제출하지 않습니다).</li>
+            <li>업로드하신 명단 파일은 대회 운영 목적으로만 사용되며, 대회 종료일로부터 1개월 후 파기됩니다.</li>
           </ul>
         </div>
-
-        <label class="field-label">참가자 명단 *</label>
-        <div class="bulk-table-wrap">
-          <table class="bulk-table" id="bulkTable">
-            <thead>
-              <tr>
-                <th style="width:36px;">순</th>
-                <th style="width:110px;">구분</th>
-                <th style="width:90px;">학년</th>
-                <th style="width:70px;">반</th>
-                <th>성명</th>
-                <th style="width:80px;">성별</th>
-                <th>비고 (교직원 직위 등)</th>
-                <th style="width:40px;"></th>
-              </tr>
-            </thead>
-            <tbody id="bulkTableBody"></tbody>
-          </table>
-        </div>
-        <button type="button" class="btn btn-outline" id="addRowBtn" style="margin-top:10px;">+ 참가자 행 추가</button>
       </div>
 
-      <div class="privacy-box">
+      <div class="privacy-box" id="individualPrivacyBox">
         <h4>개인정보 수집·이용 동의 (필수)</h4>
         <dl class="privacy-dl">
           <dt>수집 기관</dt>
