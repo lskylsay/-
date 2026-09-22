@@ -31,10 +31,12 @@ async function loadGuidelines() {
   listEl.innerHTML = data
     .map((g) => {
       const date = new Date(g.created_at).toLocaleDateString("ko-KR");
+      const titleText = g.title || g.file_name || "제목 없음";
+      const titleHtml = `<a href="${fileUrl(g.file_path)}" target="_blank" rel="noopener" style="color:inherit; text-decoration:none;">${titleText}</a>`;
       return `
         <div class="board-row">
           <div class="board-row-main">
-            <strong>${g.title || g.file_name || "제목 없음"}</strong>
+            <strong>${titleHtml}</strong>
             ${g.note ? `<p class="board-row-note">${g.note}</p>` : ""}
           </div>
           <div class="board-row-side">
