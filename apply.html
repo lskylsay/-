@@ -22,22 +22,22 @@
 
 <section class="block">
   <div class="wrap">
-    <span class="bib">참가 신청</span>
-    <h2 style="margin-top:14px;">대회 참가 신청</h2>
-    <p class="sub">대회를 먼저 선택하면 해당 대회의 종목/참가유형 목록이 나타납니다.</p>
+    <span class="bib" id="pageBib">참가 신청</span>
+    <h2 style="margin-top:14px;" id="pageTitle">대회 참가 신청</h2>
+    <p class="sub" id="pageSub">대회를 먼저 선택하면 해당 대회의 종목/참가유형 목록이 나타납니다.</p>
 
     <div class="notice-card">
       <h2>신청 전 확인해 주세요</h2>
-      <ul>
-        <li>트랙마라톤 축제 접수: 2026. 09. 21(월) ~ 09. 29(화)</li>
-        <li>충청북도교육감기 육상대회 접수: 2026. 09. 21(월) ~ 10. 14(수)</li>
+      <ul id="noticeList">
+        <li data-comp="트랙마라톤 축제">트랙마라톤 축제 접수: 2026. 09. 21(월) ~ 09. 29(화)</li>
+        <li data-comp="충북교육감기 육상대회">충청북도교육감기 육상대회 접수: 2026. 09. 21(월) ~ 10. 14(수)</li>
         <li>제출 후 수정이 필요하면 같은 내용으로 다시 제출해 주세요.</li>
         <li>문의사항은 체육교육팀으로 연락 바랍니다.</li>
       </ul>
     </div>
 
     <form id="applyForm" class="apply-form">
-      <div class="field">
+      <div class="field" id="competitionField">
         <label for="competition">참가 대회 *</label>
         <select id="competition" name="competition" required>
           <option value="">선택</option>
@@ -45,6 +45,7 @@
           <option value="충북교육감기 육상대회">제48회 충청북도교육감기 육상대회</option>
         </select>
       </div>
+      <p class="sub" id="lockedCompetitionNote" style="display:none; margin-top:-10px;"></p>
 
       <div class="field">
         <label for="sport">종목 / 참가유형 *</label>
