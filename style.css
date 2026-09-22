@@ -690,6 +690,45 @@ section.block {
   display: block;
 }
 
+/* ---------- 대회요강 게시판 ---------- */
+.board-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.board-row-main strong {
+  font-size: 1.02rem;
+  color: var(--navy);
+}
+
+.board-row-note {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.board-row-side {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  .board-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .board-row-side {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 /* ---------- 일괄 신청 단계 안내 ---------- */
 .bulk-step {
   display: flex;
