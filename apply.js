@@ -25,8 +25,18 @@ const DATE_OPTIONS = {
   "1일 왕복형": ["11.10(화)", "11.11(수)", "11.12(목)", "11.10(화)~11.11(수)", "11.11(수)~11.12(목)", "11.10(화)~11.12(목) 전체"],
 };
 
-// 교사 일괄 신청은 트랙마라톤 축제에서만 지원합니다 (제공된 신청서 양식 기준).
-const BULK_ENABLED_COMPETITIONS = ["트랙마라톤 축제"];
+// 교사 일괄 신청을 지원하는 대회 목록과, 대회별 다운로드 양식 파일
+const BULK_TEMPLATES = {
+  "트랙마라톤 축제": {
+    app: "marathon-application-template.xlsx",
+    consent: "marathon-privacy-consent-template.xlsx",
+  },
+  "충북교육감기 육상대회": {
+    app: "athletics-application-template.xlsx",
+    consent: "athletics-privacy-consent-template.xlsx",
+  },
+};
+const BULK_ENABLED_COMPETITIONS = Object.keys(BULK_TEMPLATES);
 
 const competitionSelect = document.getElementById("competition");
 const sportSelect = document.getElementById("sport");
@@ -102,7 +112,13 @@ function updateModeToggleVisibility() {
   const comp = competitionSelect.value;
   const bulkAllowed = BULK_ENABLED_COMPETITIONS.includes(comp);
   modeToggleRow.style.display = bulkAllowed ? "" : "none";
-  if (!bulkAllowed) setMode("individual");
+  if (!bulkAllowed) {
+    setMode("individual");
+    return;
+  }
+  const templates = BULK_TEMPLATES[comp];
+  document.getElementById("bulkAppTemplateLink").href = templates.app;
+  document.getElementById("bulkConsentTemplateLink").href = templates.consent;
 }
 
 function setMode(mode) {
