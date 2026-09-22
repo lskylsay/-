@@ -134,7 +134,10 @@
           <div>
             <h4>작성한 참가신청서 업로드</h4>
             <p>작성을 마친 참가신청서 엑셀 파일을 업로드해 주세요. (개인정보 동의서는 업로드하지 않습니다)</p>
-            <input type="file" id="bulkFile" accept=".xlsx,.xls">
+            <div class="dropzone" id="bulkFileDropzone" tabindex="0">
+              <input type="file" id="bulkFile" accept=".xlsx,.xls" class="dropzone-input">
+              <p class="dropzone-text">파일을 이 영역에 끌어다 놓거나 클릭하여 선택하세요<span class="dropzone-sub">.xlsx, .xls</span></p>
+            </div>
             <p id="bulkFileName" class="sub" style="margin:8px 0 0;"></p>
           </div>
         </div>
