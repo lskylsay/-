@@ -5,6 +5,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { initDropzone } from "./dropzone.js";
+import { safeStorageKey } from "./storage-key.js";
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
@@ -230,7 +231,7 @@ form.addEventListener("submit", async (e) => {
 
   if (currentMode === "bulk") {
     const file = bulkFileInput.files[0];
-    const filePath = `${Date.now()}_${file.name}`;
+    const filePath = safeStorageKey(file);
 
     const { error: uploadError } = await supabase.storage
       .from("bulk-uploads")
