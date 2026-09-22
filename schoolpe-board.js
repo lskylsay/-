@@ -34,10 +34,14 @@ async function loadPosts() {
   listEl.innerHTML = data
     .map((p) => {
       const date = new Date(p.created_at).toLocaleDateString("ko-KR");
+      const titleText = p.title || p.file_name || "제목 없음";
+      const titleHtml = p.file_path
+        ? `<a href="${fileUrl(p.file_path)}" target="_blank" rel="noopener" style="color:inherit; text-decoration:none;">${titleText}</a>`
+        : titleText;
       return `
         <div class="board-row">
           <div class="board-row-main">
-            <strong>${p.title || p.file_name || "제목 없음"}</strong>
+            <strong>${titleHtml}</strong>
             ${p.content ? `<p class="board-row-note">${p.content.replace(/\n/g, "<br>")}</p>` : ""}
             ${p.file_name ? `<p class="board-row-note">${p.file_name}</p>` : ""}
           </div>
