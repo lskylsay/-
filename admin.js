@@ -192,33 +192,42 @@ supabase.auth.onAuthStateChange(() => {
 const adminRosterTabBtn = document.getElementById("adminRosterTabBtn");
 const adminResultsTabBtn = document.getElementById("adminResultsTabBtn");
 const adminGuidelinesTabBtn = document.getElementById("adminGuidelinesTabBtn");
+const adminSchoolpeTabBtn = document.getElementById("adminSchoolpeTabBtn");
 const rosterAdminSection = document.getElementById("rosterAdminSection");
 const resultsAdminSection = document.getElementById("resultsAdminSection");
 const guidelinesAdminSection = document.getElementById("guidelinesAdminSection");
+const schoolpeAdminSection = document.getElementById("schoolpeAdminSection");
 const logoutBtn3 = document.getElementById("logoutBtn3");
 const logoutBtn4 = document.getElementById("logoutBtn4");
+const logoutBtn5 = document.getElementById("logoutBtn5");
 
 let resultsLoaded = false;
 let guidelinesLoaded = false;
+let schoolpeLoaded = false;
 
 function showAdminTab(tab) {
   adminRosterTabBtn.classList.toggle("active", tab === "roster");
   adminResultsTabBtn.classList.toggle("active", tab === "results");
   adminGuidelinesTabBtn.classList.toggle("active", tab === "guidelines");
+  adminSchoolpeTabBtn.classList.toggle("active", tab === "schoolpe");
   rosterAdminSection.style.display = tab === "roster" ? "" : "none";
   resultsAdminSection.style.display = tab === "results" ? "" : "none";
   guidelinesAdminSection.style.display = tab === "guidelines" ? "" : "none";
+  schoolpeAdminSection.style.display = tab === "schoolpe" ? "" : "none";
 
   if (tab === "results" && !resultsLoaded) loadResultsAdmin();
   if (tab === "guidelines" && !guidelinesLoaded) loadGuidelinesAdmin();
+  if (tab === "schoolpe" && !schoolpeLoaded) loadSchoolpeAdmin();
 }
 
 adminRosterTabBtn.addEventListener("click", () => showAdminTab("roster"));
 adminResultsTabBtn.addEventListener("click", () => showAdminTab("results"));
 adminGuidelinesTabBtn.addEventListener("click", () => showAdminTab("guidelines"));
+adminSchoolpeTabBtn.addEventListener("click", () => showAdminTab("schoolpe"));
 
 logoutBtn3.addEventListener("click", doLogout);
 logoutBtn4.addEventListener("click", doLogout);
+logoutBtn5.addEventListener("click", doLogout);
 
 /* ============ 대회 결과 관리 ============ */
 
@@ -512,6 +521,163 @@ gUploadBtn.addEventListener("click", async () => {
   gNote.value = "";
   gFile.value = "";
   loadGuidelinesAdmin();
+});
+
+/* ============ 학교체육업무지원 관리 ============ */
+
+const CATEGORY_LABELS = {
+  plan: "가. 기본계획",
+  notice: "나. 공지사항",
+  club: "다. 학교스포츠클럽대회",
+  youth: "라. 전국소년체육대회",
+  national: "마. 전국체육대회",
+};
+
+const schoolpeRefreshBtn = document.getElementById("schoolpeRefreshBtn");
+const spCategory = document.getElementById("spCategory");
+const spTitle = document.getElementById("spTitle");
+const spContent = document.getElementById("spContent");
+const spFile = document.getElementById("spFile");
+const spUploadBtn = document.getElementById("spUploadBtn");
+const spUploadStatus = document.getElementById("spUploadStatus");
+const spFilterRow = document.getElementById("spFilterRow");
+const spCountLabel = document.getElementById("spCountLabel");
+const spListContainer = document.getElementById("spListContainer");
+
+let spAllRows = [];
+let spActiveCategory = "전체";
+
+schoolpeRefreshBtn.addEventListener("click", loadSchoolpeAdmin);
+
+function renderSpFilters() {
+  const cats = ["전체", ...Object.keys(CATEGORY_LABELS)];
+  spFilterRow.innerHTML = "";
+  cats.forEach((cat) => {
+    const btn = document.createElement("button");
+    btn.className = "filter-btn" + (cat === spActiveCategory ? " active" : "");
+    btn.textContent = cat === "전체" ? "전체" : CATEGORY_LABELS[cat];
+    btn.addEventListener("click", () => {
+      spActiveCategory = cat;
+      renderSpFilters();
+      renderSpList();
+    });
+    spFilterRow.appendChild(btn);
+  });
+}
+
+function renderSpList() {
+  const rows = spActiveCategory === "전체" ? spAllRows : spAllRows.filter((r) => r.category === spActiveCategory);
+  spCountLabel.textContent = `총 ${rows.length}건`;
+
+  spListContainer.innerHTML = rows
+    .map((r, idx) => {
+      const date = new Date(r.created_at).toLocaleString("ko-KR");
+      return `
+        <div class="board-row">
+          <div class="board-row-main">
+            <strong>[${CATEGORY_LABELS[r.category] || r.category}] ${r.title || ""}</strong>
+            ${r.content ? `<p class="board-row-note">${r.content}</p>` : ""}
+            <p class="board-row-note">${date}${r.file_name ? " · " + r.file_name : ""}</p>
+          </div>
+          <div class="board-row-side">
+            <button type="button" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);" data-idx="${idx}" data-action="delete">삭제</button>
+          </div>
+        </div>`;
+    })
+    .join("");
+
+  spListContainer.querySelectorAll('[data-action="delete"]').forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = rows[Number(btn.dataset.idx)];
+      if (!confirm(`"${row.title}" 게시물을 삭제할까요?`)) return;
+
+      if (row.file_path) {
+        await supabase.storage.from("schoolpe-files").remove([row.file_path]);
+      }
+      const { error } = await supabase.from("school_pe_posts").delete().eq("id", row.id);
+
+      if (error) {
+        alert("삭제 실패: " + error.message);
+        return;
+      }
+      loadSchoolpeAdmin();
+    });
+  });
+}
+
+async function loadSchoolpeAdmin() {
+  const { data, error } = await supabase
+    .from("school_pe_posts")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    spCountLabel.textContent = "불러오기 실패: " + error.message;
+    return;
+  }
+
+  schoolpeLoaded = true;
+  spAllRows = data || [];
+  renderSpFilters();
+  renderSpList();
+}
+
+spUploadBtn.addEventListener("click", async () => {
+  const category = spCategory.value;
+  const title = spTitle.value.trim();
+  const content = spContent.value.trim();
+  const file = spFile.files[0];
+
+  if (!category || !title) {
+    spUploadStatus.textContent = "게시판과 제목은 필수입니다.";
+    spUploadStatus.className = "form-status error";
+    return;
+  }
+
+  spUploadBtn.disabled = true;
+  spUploadStatus.textContent = "등록 중…";
+  spUploadStatus.className = "form-status";
+
+  let filePath = null;
+  let fileName = null;
+
+  if (file) {
+    filePath = `${Date.now()}_${file.name}`;
+    fileName = file.name;
+    const { error: uploadError } = await supabase.storage.from("schoolpe-files").upload(filePath, file);
+    if (uploadError) {
+      spUploadBtn.disabled = false;
+      spUploadStatus.textContent = "파일 업로드 실패: " + uploadError.message;
+      spUploadStatus.className = "form-status error";
+      return;
+    }
+  }
+
+  const { error } = await supabase.from("school_pe_posts").insert([
+    {
+      category,
+      title,
+      content: content || null,
+      file_path: filePath,
+      file_name: fileName,
+    },
+  ]);
+
+  spUploadBtn.disabled = false;
+
+  if (error) {
+    spUploadStatus.textContent = "등록 실패: " + error.message;
+    spUploadStatus.className = "form-status error";
+    return;
+  }
+
+  spUploadStatus.textContent = "등록되었습니다.";
+  spUploadStatus.className = "form-status success";
+  spTitle.value = "";
+  spContent.value = "";
+  spFile.value = "";
+  spCategory.value = "";
+  loadSchoolpeAdmin();
 });
 
 checkAuthAndRender();
