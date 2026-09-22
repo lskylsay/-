@@ -42,7 +42,7 @@ async function doLogout() {
 logoutBtn.addEventListener("click", doLogout);
 logoutBtnDenied.addEventListener("click", doLogout);
 
-refreshBtn.addEventListener("click", loadApplications);
+refreshBtn.addEventListener("click", loadRoster);
 
 function renderFilters() {
   const competitions = ["전체", ...Array.from(new Set(allRows.map((r) => r.competition).filter(Boolean)))];
@@ -64,41 +64,101 @@ function renderTable() {
   const rows =
     activeCompetition === "전체" ? allRows : allRows.filter((r) => r.competition === activeCompetition);
 
-  countLabel.textContent = `총 ${rows.length}건`;
+  countLabel.textContent = `총 ${rows.length}건 (개인 ${rows.filter((r) => r.type === "individual").length}건 · 일괄 ${rows.filter((r) => r.type === "bulk").length}건)`;
 
   tableBody.innerHTML = rows
-    .map((r) => {
+    .map((r, idx) => {
       const date = new Date(r.created_at).toLocaleString("ko-KR");
+      const typeLabel = r.type === "bulk" ? "일괄" : "개인";
+
+      let detailCell;
+      if (r.type === "bulk") {
+        detailCell = `<button type="button" class="btn btn-outline roster-download-btn" data-idx="${idx}" style="font-size:0.78rem; padding:6px 12px;">${r.raw.file_name || "파일"} 다운로드</button>`;
+      } else {
+        detailCell = r.raw.members || "";
+      }
+
       return `
         <tr>
           <td>${date}</td>
+          <td><span class="type-badge type-badge-${r.type}">${typeLabel}</span></td>
           <td>${r.competition || ""}</td>
           <td>${r.sport || ""}</td>
-          <td>${r.preferred_dates || ""}</td>
-          <td>${r.class_no || ""}</td>
-          <td>${r.grade || ""}</td>
-          <td>${r.leader_name || ""}</td>
+          <td>${r.school || ""}</td>
+          <td>${r.contactName || ""}</td>
           <td>${r.contact || ""}</td>
-          <td>${r.members || ""}</td>
-          <td>${r.note || ""}</td>
+          <td>${detailCell}</td>
           <td style="font-family:var(--font-mono); font-size:0.82rem; color:var(--ink-soft);">${r.ip_address || ""}</td>
         </tr>`;
     })
     .join("");
+
+  tableBody.querySelectorAll(".roster-download-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = rows[Number(btn.dataset.idx)];
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = "링크 생성 중…";
+
+      const { data, error } = await supabase.storage
+        .from("bulk-uploads")
+        .createSignedUrl(row.raw.file_path, 60);
+
+      btn.disabled = false;
+      btn.textContent = originalText;
+
+      if (error || !data) {
+        alert("다운로드 링크 생성에 실패했습니다: " + (error ? error.message : "알 수 없는 오류"));
+        return;
+      }
+      window.open(data.signedUrl, "_blank");
+    });
+  });
 }
 
-async function loadApplications() {
-  const { data, error } = await supabase
-    .from("applications")
-    .select("*")
-    .order("created_at", { ascending: false });
+async function loadRoster() {
+  countLabel.textContent = "불러오는 중…";
 
-  if (error) {
-    countLabel.textContent = "불러오기 실패: " + error.message;
+  const [individualRes, bulkRes] = await Promise.all([
+    supabase.from("applications").select("*").order("created_at", { ascending: false }),
+    supabase.from("bulk_applications").select("*").order("created_at", { ascending: false }),
+  ]);
+
+  if (individualRes.error || bulkRes.error) {
+    countLabel.textContent = "불러오기 실패: " + (individualRes.error?.message || bulkRes.error?.message);
     return;
   }
 
-  allRows = data || [];
+  const individualNormalized = (individualRes.data || []).map((r) => ({
+    type: "individual",
+    id: "ind-" + r.id,
+    created_at: r.created_at,
+    competition: r.competition,
+    sport: r.sport,
+    school: r.class_no,
+    contactName: r.leader_name,
+    contact: r.contact,
+    ip_address: r.ip_address,
+    raw: r,
+  }));
+
+  const bulkNormalized = (bulkRes.data || []).map((r) => ({
+    type: "bulk",
+    id: "bulk-" + r.id,
+    created_at: r.created_at,
+    competition: r.competition,
+    sport: r.sport,
+    school: r.school,
+    contactName: r.teacher_name,
+    contact: r.teacher_contact,
+    ip_address: r.ip_address,
+    raw: r,
+  }));
+
+  allRows = [...individualNormalized, ...bulkNormalized].sort(
+    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+  );
+
   renderFilters();
   renderTable();
 }
@@ -120,124 +180,45 @@ async function checkAuthAndRender() {
   }
 
   showView("admin");
-  loadApplications();
+  loadRoster();
 }
 
 supabase.auth.onAuthStateChange(() => {
   checkAuthAndRender();
 });
 
-/* ============ 개인 신청 / 교사 일괄 신청 / 대회 결과 탭 전환 ============ */
+/* ============ 신청자명단관리 / 대회결과관리 / 대회요강관리 탭 전환 ============ */
 
-const adminIndividualTabBtn = document.getElementById("adminIndividualTabBtn");
-const adminBulkTabBtn = document.getElementById("adminBulkTabBtn");
+const adminRosterTabBtn = document.getElementById("adminRosterTabBtn");
 const adminResultsTabBtn = document.getElementById("adminResultsTabBtn");
 const adminGuidelinesTabBtn = document.getElementById("adminGuidelinesTabBtn");
-const individualAdminSection = document.getElementById("individualAdminSection");
-const bulkAdminSection = document.getElementById("bulkAdminSection");
+const rosterAdminSection = document.getElementById("rosterAdminSection");
 const resultsAdminSection = document.getElementById("resultsAdminSection");
 const guidelinesAdminSection = document.getElementById("guidelinesAdminSection");
-const logoutBtn2 = document.getElementById("logoutBtn2");
 const logoutBtn3 = document.getElementById("logoutBtn3");
 const logoutBtn4 = document.getElementById("logoutBtn4");
-const bulkRefreshBtn = document.getElementById("bulkRefreshBtn");
-const bulkCountLabel = document.getElementById("bulkCountLabel");
-const bulkListContainer = document.getElementById("bulkListContainer");
 
-let bulkLoaded = false;
 let resultsLoaded = false;
 let guidelinesLoaded = false;
 
 function showAdminTab(tab) {
-  adminIndividualTabBtn.classList.toggle("active", tab === "individual");
-  adminBulkTabBtn.classList.toggle("active", tab === "bulk");
+  adminRosterTabBtn.classList.toggle("active", tab === "roster");
   adminResultsTabBtn.classList.toggle("active", tab === "results");
   adminGuidelinesTabBtn.classList.toggle("active", tab === "guidelines");
-  individualAdminSection.style.display = tab === "individual" ? "" : "none";
-  bulkAdminSection.style.display = tab === "bulk" ? "" : "none";
+  rosterAdminSection.style.display = tab === "roster" ? "" : "none";
   resultsAdminSection.style.display = tab === "results" ? "" : "none";
   guidelinesAdminSection.style.display = tab === "guidelines" ? "" : "none";
 
-  if (tab === "bulk" && !bulkLoaded) loadBulkApplications();
   if (tab === "results" && !resultsLoaded) loadResultsAdmin();
   if (tab === "guidelines" && !guidelinesLoaded) loadGuidelinesAdmin();
 }
 
-adminIndividualTabBtn.addEventListener("click", () => showAdminTab("individual"));
-adminBulkTabBtn.addEventListener("click", () => showAdminTab("bulk"));
+adminRosterTabBtn.addEventListener("click", () => showAdminTab("roster"));
 adminResultsTabBtn.addEventListener("click", () => showAdminTab("results"));
 adminGuidelinesTabBtn.addEventListener("click", () => showAdminTab("guidelines"));
 
-logoutBtn2.addEventListener("click", doLogout);
 logoutBtn3.addEventListener("click", doLogout);
 logoutBtn4.addEventListener("click", doLogout);
-bulkRefreshBtn.addEventListener("click", loadBulkApplications);
-
-function renderBulkList(rows) {
-  bulkCountLabel.textContent = `총 ${rows.length}건`;
-
-  bulkListContainer.innerHTML = rows
-    .map((r, idx) => {
-      const date = new Date(r.created_at).toLocaleString("ko-KR");
-      return `
-        <div class="bulk-admin-card">
-          <div class="bulk-admin-head">
-            <div>
-              <strong>${r.school || ""}</strong>
-              <span class="sub" style="margin:0;">${r.competition || ""} · ${r.sport || ""}</span>
-            </div>
-            <span class="sub" style="margin:0;">${date}</span>
-          </div>
-          <dl class="privacy-dl" style="margin-top:12px;">
-            <dt>학교장</dt><dd>${r.principal_name || "-"}</dd>
-            <dt>담당교사</dt><dd>${r.teacher_name || ""} (${r.teacher_contact || ""})</dd>
-            <dt>신청인원</dt><dd>${r.requested_count || "-"}</dd>
-            <dt>IP</dt><dd style="font-family:var(--font-mono); font-size:0.82rem;">${r.ip_address || ""}</dd>
-          </dl>
-          <button type="button" class="btn btn-outline bulk-download-btn" data-idx="${idx}" style="margin-top:8px;">
-            ${r.file_name || "첨부파일"} 다운로드
-          </button>
-        </div>`;
-    })
-    .join("");
-
-  bulkListContainer.querySelectorAll(".bulk-download-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const row = rows[Number(btn.dataset.idx)];
-      btn.disabled = true;
-      const originalText = btn.textContent;
-      btn.textContent = "링크 생성 중…";
-
-      const { data, error } = await supabase.storage
-        .from("bulk-uploads")
-        .createSignedUrl(row.file_path, 60);
-
-      btn.disabled = false;
-      btn.textContent = originalText;
-
-      if (error || !data) {
-        alert("다운로드 링크 생성에 실패했습니다: " + (error ? error.message : "알 수 없는 오류"));
-        return;
-      }
-      window.open(data.signedUrl, "_blank");
-    });
-  });
-}
-
-async function loadBulkApplications() {
-  const { data, error } = await supabase
-    .from("bulk_applications")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    bulkCountLabel.textContent = "불러오기 실패: " + error.message;
-    return;
-  }
-
-  bulkLoaded = true;
-  renderBulkList(data || []);
-}
 
 /* ============ 대회 결과 관리 ============ */
 
