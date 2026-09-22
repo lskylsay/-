@@ -828,6 +828,25 @@ section.block {
   color: #B0B5BE;
 }
 
+/* ---------- 학교체육업무지원 5개 메뉴 한 줄 배치 ---------- */
+.menu-row-5 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .menu-row-5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .menu-row-5 {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 560px) {
   .board-row {
     flex-direction: column;
