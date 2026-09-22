@@ -4,6 +4,7 @@
 // - 최종 데이터는 config.js 의 값을 이용해 Supabase에 바로 저장됩니다.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { initDropzone } from "./dropzone.js";
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
@@ -163,11 +164,7 @@ modeBulkBtn.addEventListener("click", () => setMode("bulk"));
 
 const bulkFileInput = document.getElementById("bulkFile");
 const bulkFileName = document.getElementById("bulkFileName");
-
-bulkFileInput.addEventListener("change", () => {
-  const file = bulkFileInput.files[0];
-  bulkFileName.textContent = file ? "선택된 파일: " + file.name : "";
-});
+initDropzone(document.getElementById("bulkFileDropzone"), bulkFileInput, bulkFileName);
 
 /* ============ URL의 ?competition= 값으로 대회 고정 ============ */
 
@@ -289,6 +286,7 @@ form.addEventListener("submit", async (e) => {
   statusEl.classList.add("success");
   form.reset();
   bulkFileName.textContent = "";
+  document.getElementById("bulkFileDropzone").classList.remove("has-file");
 
   if (currentMode !== "bulk") {
     fillSelect(sportSelect, [], "먼저 대회를 선택하세요");
