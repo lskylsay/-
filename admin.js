@@ -159,27 +159,11 @@ logoutBtn2.addEventListener("click", doLogout);
 bulkRefreshBtn.addEventListener("click", loadBulkApplications);
 
 function renderBulkList(rows) {
-  bulkCountLabel.textContent = `총 ${rows.length}건 (참가자 합계 ${rows.reduce((sum, r) => sum + (r.participants || []).length, 0)}명)`;
+  bulkCountLabel.textContent = `총 ${rows.length}건`;
 
   bulkListContainer.innerHTML = rows
-    .map((r) => {
+    .map((r, idx) => {
       const date = new Date(r.created_at).toLocaleString("ko-KR");
-      const participants = r.participants || [];
-      const participantRows = participants
-        .map(
-          (p, i) => `
-          <tr>
-            <td class="row-num">${i + 1}</td>
-            <td>${p.type || ""}</td>
-            <td>${p.grade || ""}</td>
-            <td>${p.class_no || ""}</td>
-            <td>${p.name || ""}</td>
-            <td>${p.gender || ""}</td>
-            <td>${p.note || ""}</td>
-          </tr>`
-        )
-        .join("");
-
       return `
         <div class="bulk-admin-card">
           <div class="bulk-admin-head">
@@ -192,21 +176,37 @@ function renderBulkList(rows) {
           <dl class="privacy-dl" style="margin-top:12px;">
             <dt>학교장</dt><dd>${r.principal_name || "-"}</dd>
             <dt>담당교사</dt><dd>${r.teacher_name || ""} (${r.teacher_contact || ""})</dd>
-            <dt>신청가능인원</dt><dd>${r.requested_count || "-"}</dd>
-            <dt>참가 인원</dt><dd>${participants.length}명</dd>
+            <dt>신청인원</dt><dd>${r.requested_count || "-"}</dd>
             <dt>IP</dt><dd style="font-family:var(--font-mono); font-size:0.82rem;">${r.ip_address || ""}</dd>
           </dl>
-          <div class="bulk-table-wrap" style="margin-top:12px;">
-            <table class="bulk-table">
-              <thead>
-                <tr><th style="width:36px;">순</th><th>구분</th><th>학년</th><th>반</th><th>성명</th><th>성별</th><th>비고</th></tr>
-              </thead>
-              <tbody>${participantRows}</tbody>
-            </table>
-          </div>
+          <button type="button" class="btn btn-outline bulk-download-btn" data-idx="${idx}" style="margin-top:8px;">
+            ${r.file_name || "첨부파일"} 다운로드
+          </button>
         </div>`;
     })
     .join("");
+
+  bulkListContainer.querySelectorAll(".bulk-download-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = rows[Number(btn.dataset.idx)];
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = "링크 생성 중…";
+
+      const { data, error } = await supabase.storage
+        .from("bulk-uploads")
+        .createSignedUrl(row.file_path, 60);
+
+      btn.disabled = false;
+      btn.textContent = originalText;
+
+      if (error || !data) {
+        alert("다운로드 링크 생성에 실패했습니다: " + (error ? error.message : "알 수 없는 오류"));
+        return;
+      }
+      window.open(data.signedUrl, "_blank");
+    });
+  });
 }
 
 async function loadBulkApplications() {
