@@ -15,6 +15,7 @@
     <nav class="site-nav">
       <a href="index.html">홈</a>
       <a href="apply.html">참가 신청</a>
+      <a href="guidelines.html">대회요강</a>
       <a href="results.html">대회 결과</a>
     </nav>
   </div>
@@ -43,6 +44,7 @@
         <button type="button" class="filter-btn active" id="adminIndividualTabBtn">개인 신청</button>
         <button type="button" class="filter-btn" id="adminBulkTabBtn">교사 일괄 신청</button>
         <button type="button" class="filter-btn" id="adminResultsTabBtn">대회 결과 관리</button>
+        <button type="button" class="filter-btn" id="adminGuidelinesTabBtn">대회요강 관리</button>
       </div>
 
       <!-- 개인 신청 목록 -->
@@ -165,6 +167,37 @@
             <tbody id="resultsTableBody"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- 대회요강 관리 -->
+      <div id="guidelinesAdminSection" style="display:none;">
+        <div style="display:flex; gap:10px; margin-bottom:24px;">
+          <button id="guidelinesRefreshBtn" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);">새로고침</button>
+          <button id="logoutBtn4" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);">로그아웃</button>
+        </div>
+
+        <div style="margin-bottom:28px;">
+          <label class="field-label">새 요강 문서 업로드</label>
+          <div class="form-row">
+            <div class="field">
+              <label for="gTitle">제목 *</label>
+              <input type="text" id="gTitle" placeholder="예: 트랙마라톤 축제 대회요강">
+            </div>
+            <div class="field">
+              <label for="gFile">파일 *</label>
+              <input type="file" id="gFile">
+            </div>
+          </div>
+          <div class="field">
+            <label for="gNote">설명 (선택)</label>
+            <input type="text" id="gNote" placeholder="간단한 설명을 적어주세요">
+          </div>
+          <button type="button" class="btn btn-primary" id="gUploadBtn">업로드</button>
+          <p id="gUploadStatus" class="form-status"></p>
+        </div>
+
+        <p id="gCountLabel" class="sub" style="margin-bottom:12px;"></p>
+        <div id="gListContainer"></div>
       </div>
     </div>
   </div>
