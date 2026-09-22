@@ -858,6 +858,34 @@ section.block {
   }
 }
 
+/* ---------- 게시판 이미지 게시물 미리보기 ---------- */
+.board-photo-row {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.board-photo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.board-photo-head strong {
+  font-size: 1.02rem;
+  color: var(--navy);
+}
+
+.board-photo {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  margin-top: 10px;
+}
+
 /* ---------- 일괄 신청 단계 안내 ---------- */
 .bulk-step {
   display: flex;
