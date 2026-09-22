@@ -127,35 +127,41 @@ supabase.auth.onAuthStateChange(() => {
   checkAuthAndRender();
 });
 
-/* ============ 개인 신청 / 교사 일괄 신청 탭 전환 ============ */
+/* ============ 개인 신청 / 교사 일괄 신청 / 대회 결과 탭 전환 ============ */
 
 const adminIndividualTabBtn = document.getElementById("adminIndividualTabBtn");
 const adminBulkTabBtn = document.getElementById("adminBulkTabBtn");
+const adminResultsTabBtn = document.getElementById("adminResultsTabBtn");
 const individualAdminSection = document.getElementById("individualAdminSection");
 const bulkAdminSection = document.getElementById("bulkAdminSection");
+const resultsAdminSection = document.getElementById("resultsAdminSection");
 const logoutBtn2 = document.getElementById("logoutBtn2");
+const logoutBtn3 = document.getElementById("logoutBtn3");
 const bulkRefreshBtn = document.getElementById("bulkRefreshBtn");
 const bulkCountLabel = document.getElementById("bulkCountLabel");
 const bulkListContainer = document.getElementById("bulkListContainer");
 
 let bulkLoaded = false;
+let resultsLoaded = false;
 
-adminIndividualTabBtn.addEventListener("click", () => {
-  adminIndividualTabBtn.classList.add("active");
-  adminBulkTabBtn.classList.remove("active");
-  individualAdminSection.style.display = "";
-  bulkAdminSection.style.display = "none";
-});
+function showAdminTab(tab) {
+  adminIndividualTabBtn.classList.toggle("active", tab === "individual");
+  adminBulkTabBtn.classList.toggle("active", tab === "bulk");
+  adminResultsTabBtn.classList.toggle("active", tab === "results");
+  individualAdminSection.style.display = tab === "individual" ? "" : "none";
+  bulkAdminSection.style.display = tab === "bulk" ? "" : "none";
+  resultsAdminSection.style.display = tab === "results" ? "" : "none";
 
-adminBulkTabBtn.addEventListener("click", () => {
-  adminBulkTabBtn.classList.add("active");
-  adminIndividualTabBtn.classList.remove("active");
-  individualAdminSection.style.display = "none";
-  bulkAdminSection.style.display = "";
-  if (!bulkLoaded) loadBulkApplications();
-});
+  if (tab === "bulk" && !bulkLoaded) loadBulkApplications();
+  if (tab === "results" && !resultsLoaded) loadResultsAdmin();
+}
+
+adminIndividualTabBtn.addEventListener("click", () => showAdminTab("individual"));
+adminBulkTabBtn.addEventListener("click", () => showAdminTab("bulk"));
+adminResultsTabBtn.addEventListener("click", () => showAdminTab("results"));
 
 logoutBtn2.addEventListener("click", doLogout);
+logoutBtn3.addEventListener("click", doLogout);
 bulkRefreshBtn.addEventListener("click", loadBulkApplications);
 
 function renderBulkList(rows) {
@@ -223,5 +229,182 @@ async function loadBulkApplications() {
   bulkLoaded = true;
   renderBulkList(data || []);
 }
+
+/* ============ 대회 결과 관리 ============ */
+
+const resultsRefreshBtn = document.getElementById("resultsRefreshBtn");
+const resultsCountLabel = document.getElementById("resultsCountLabel");
+const resultsTableBody = document.getElementById("resultsTableBody");
+const resAddBtn = document.getElementById("resAddBtn");
+const resAddStatus = document.getElementById("resAddStatus");
+const resultsFileInput = document.getElementById("resultsFileInput");
+const resultsUploadBtn = document.getElementById("resultsUploadBtn");
+const resultsUploadStatus = document.getElementById("resultsUploadStatus");
+
+resultsRefreshBtn.addEventListener("click", loadResultsAdmin);
+
+function renderResultsTable(rows) {
+  resultsCountLabel.textContent = `총 ${rows.length}건`;
+  resultsTableBody.innerHTML = rows
+    .map(
+      (r) => `
+      <tr>
+        <td>${r.competition || ""}</td>
+        <td>${r.division || ""}</td>
+        <td>${r.date || ""}</td>
+        <td class="rank">${r.rank ?? ""}</td>
+        <td>${r.name || ""}</td>
+        <td>${r.note || ""}</td>
+        <td><button type="button" class="row-remove-btn" data-id="${r.id}" title="삭제">×</button></td>
+      </tr>`
+    )
+    .join("");
+
+  resultsTableBody.querySelectorAll(".row-remove-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("이 결과를 삭제할까요?")) return;
+      const { error } = await supabase.from("results").delete().eq("id", btn.dataset.id);
+      if (error) {
+        alert("삭제 실패: " + error.message);
+        return;
+      }
+      loadResultsAdmin();
+    });
+  });
+}
+
+async function loadResultsAdmin() {
+  const { data, error } = await supabase
+    .from("results")
+    .select("*")
+    .order("competition", { ascending: true })
+    .order("division", { ascending: true })
+    .order("rank", { ascending: true });
+
+  if (error) {
+    resultsCountLabel.textContent = "불러오기 실패: " + error.message;
+    return;
+  }
+
+  resultsLoaded = true;
+  renderResultsTable(data || []);
+}
+
+// 직접 입력으로 한 건 추가
+resAddBtn.addEventListener("click", async () => {
+  const competition = document.getElementById("resCompetition").value;
+  const division = document.getElementById("resDivision").value.trim();
+  const date = document.getElementById("resDate").value.trim();
+  const rank = document.getElementById("resRank").value;
+  const name = document.getElementById("resName").value.trim();
+  const note = document.getElementById("resNote").value.trim();
+
+  if (!competition || !division || !rank || !name) {
+    resAddStatus.textContent = "대회, 종목/부문, 순위, 이름은 필수입니다.";
+    resAddStatus.className = "form-status error";
+    return;
+  }
+
+  resAddBtn.disabled = true;
+  const { error } = await supabase.from("results").insert([
+    {
+      competition,
+      division,
+      date: date || null,
+      rank: Number(rank),
+      name,
+      note: note || null,
+    },
+  ]);
+  resAddBtn.disabled = false;
+
+  if (error) {
+    resAddStatus.textContent = "추가 실패: " + error.message;
+    resAddStatus.className = "form-status error";
+    return;
+  }
+
+  resAddStatus.textContent = "추가되었습니다.";
+  resAddStatus.className = "form-status success";
+  document.getElementById("resDivision").value = "";
+  document.getElementById("resDate").value = "";
+  document.getElementById("resRank").value = "";
+  document.getElementById("resName").value = "";
+  document.getElementById("resNote").value = "";
+  loadResultsAdmin();
+});
+
+// 엑셀 업로드로 한 번에 추가
+resultsUploadBtn.addEventListener("click", async () => {
+  const file = resultsFileInput.files[0];
+  if (!file) {
+    resultsUploadStatus.textContent = "업로드할 파일을 선택해 주세요.";
+    resultsUploadStatus.className = "form-status error";
+    return;
+  }
+
+  resultsUploadBtn.disabled = true;
+  resultsUploadStatus.textContent = "읽는 중…";
+  resultsUploadStatus.className = "form-status";
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+    const validCompetitions = ["트랙마라톤 축제", "충북교육감기 육상대회"];
+    const parsed = [];
+    const skipped = [];
+
+    rows.forEach((row) => {
+      const competition = String(row["대회"] || "").trim();
+      const division = String(row["종목/부문"] || "").trim();
+      const rank = Number(row["순위"]);
+      const name = String(row["이름"] || "").trim();
+
+      if (!competition || !division || !name || !rank || !validCompetitions.includes(competition)) {
+        skipped.push(row);
+        return;
+      }
+
+      parsed.push({
+        competition,
+        division,
+        date: String(row["날짜"] || "").trim() || null,
+        rank,
+        name,
+        note: String(row["비고"] || "").trim() || null,
+      });
+    });
+
+    if (parsed.length === 0) {
+      resultsUploadStatus.textContent = "유효한 행이 없습니다. 양식의 헤더(대회/종목·부문/날짜/순위/이름/비고)와 대회명을 확인해 주세요.";
+      resultsUploadStatus.className = "form-status error";
+      resultsUploadBtn.disabled = false;
+      return;
+    }
+
+    const { error } = await supabase.from("results").insert(parsed);
+
+    resultsUploadBtn.disabled = false;
+
+    if (error) {
+      resultsUploadStatus.textContent = "업로드 실패: " + error.message;
+      resultsUploadStatus.className = "form-status error";
+      return;
+    }
+
+    resultsUploadStatus.textContent =
+      `${parsed.length}건 업로드 완료.` + (skipped.length ? ` (형식이 맞지 않아 ${skipped.length}건 건너뜀)` : "");
+    resultsUploadStatus.className = "form-status success";
+    resultsFileInput.value = "";
+    loadResultsAdmin();
+  } catch (err) {
+    resultsUploadBtn.disabled = false;
+    resultsUploadStatus.textContent = "파일을 읽는 중 오류가 발생했습니다: " + err.message;
+    resultsUploadStatus.className = "form-status error";
+  }
+});
 
 checkAuthAndRender();
