@@ -7,7 +7,10 @@
   if (!container || typeof RESULTS === "undefined") return;
 
   const sports = ["전체", ...Array.from(new Set(RESULTS.map((g) => g.sport)))];
-  let activeSport = "전체";
+
+  // URL에 ?competition=대회명 이 있으면 해당 대회 탭을 자동으로 선택합니다.
+  const preselected = new URLSearchParams(window.location.search).get("competition");
+  let activeSport = sports.includes(preselected) ? preselected : "전체";
 
   function rankClass(rank) {
     if (rank === 1) return "gold";
