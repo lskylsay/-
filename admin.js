@@ -5,6 +5,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { initDropzone } from "./dropzone.js";
+import { safeStorageKey } from "./storage-key.js";
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
@@ -492,7 +493,7 @@ gUploadBtn.addEventListener("click", async () => {
   gUploadStatus.textContent = "업로드 중…";
   gUploadStatus.className = "form-status";
 
-  const filePath = `${Date.now()}_${file.name}`;
+  const filePath = safeStorageKey(file);
   const { error: uploadError } = await supabase.storage
     .from("guideline-files")
     .upload(filePath, file);
@@ -651,7 +652,7 @@ spUploadBtn.addEventListener("click", async () => {
   let fileName = null;
 
   if (file) {
-    filePath = `${Date.now()}_${file.name}`;
+    filePath = safeStorageKey(file);
     fileName = file.name;
     const { error: uploadError } = await supabase.storage.from("schoolpe-files").upload(filePath, file);
     if (uploadError) {
