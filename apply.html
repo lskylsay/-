@@ -36,6 +36,13 @@
       </ul>
     </div>
 
+    <!-- 신청 방식 전환 (개인 / 교사 일괄) -->
+    <div class="filter-row" id="modeToggleRow" style="display:none;">
+      <button type="button" class="filter-btn active" id="modeIndividualBtn">개인 신청</button>
+      <button type="button" class="filter-btn" id="modeBulkBtn">교사 일괄 신청 (학교 단위)</button>
+    </div>
+
+    <!-- ================= 개인 신청 폼 ================= -->
     <form id="applyForm" class="apply-form">
       <div class="field" id="competitionField">
         <label for="competition">참가 대회 *</label>
@@ -61,36 +68,98 @@
         </select>
       </div>
 
-      <div class="form-row">
-        <div class="field">
-          <label for="school">학교명 *</label>
-          <input type="text" id="school" name="school" placeholder="예: 제천OO초등학교" required>
+      <div id="individualFields">
+        <div class="form-row">
+          <div class="field">
+            <label for="school">학교명 *</label>
+            <input type="text" id="school" name="school" placeholder="예: 제천OO초등학교" required>
+          </div>
+          <div class="field">
+            <label for="grade">학년 / 구분 *</label>
+            <input type="text" id="grade" name="grade" placeholder="예: 5학년, 교직원" required>
+          </div>
         </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="leaderName">대표자(신청자) 이름 *</label>
+            <input type="text" id="leaderName" name="leaderName" required>
+          </div>
+          <div class="field">
+            <label for="contact">연락처 *</label>
+            <input type="tel" id="contact" name="contact" placeholder="010-0000-0000" required>
+          </div>
+        </div>
+
         <div class="field">
-          <label for="grade">학년 / 구분 *</label>
-          <input type="text" id="grade" name="grade" placeholder="예: 5학년, 교직원" required>
+          <label for="members">참가자 명단 (선택)</label>
+          <textarea id="members" name="members" rows="3" placeholder="여러 명일 경우 이름을 쉼표로 구분해 적어주세요"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="note">비고 (선택)</label>
+          <textarea id="note" name="note" rows="2"></textarea>
         </div>
       </div>
 
-      <div class="form-row">
-        <div class="field">
-          <label for="leaderName">대표자(신청자) 이름 *</label>
-          <input type="text" id="leaderName" name="leaderName" required>
-        </div>
-        <div class="field">
-          <label for="contact">연락처 *</label>
-          <input type="tel" id="contact" name="contact" placeholder="010-0000-0000" required>
-        </div>
-      </div>
+      <!-- ================= 교사 일괄 신청 영역 ================= -->
+      <div id="bulkFields" style="display:none;">
+        <div class="bib" style="margin-bottom:16px; background:var(--pine);">학교 단위 일괄 신청</div>
 
-      <div class="field">
-        <label for="members">참가자 명단 (선택)</label>
-        <textarea id="members" name="members" rows="3" placeholder="여러 명일 경우 이름을 쉼표로 구분해 적어주세요"></textarea>
-      </div>
+        <div class="form-row">
+          <div class="field">
+            <label for="bulkSchool">학교명 *</label>
+            <input type="text" id="bulkSchool" placeholder="예: 제천OO초등학교">
+          </div>
+          <div class="field">
+            <label for="bulkPrincipal">학교장 성명 (선택)</label>
+            <input type="text" id="bulkPrincipal">
+          </div>
+        </div>
 
-      <div class="field">
-        <label for="note">비고 (선택)</label>
-        <textarea id="note" name="note" rows="2"></textarea>
+        <div class="form-row">
+          <div class="field">
+            <label for="bulkTeacherName">담당교사 성명 *</label>
+            <input type="text" id="bulkTeacherName">
+          </div>
+          <div class="field">
+            <label for="bulkTeacherContact">담당교사 연락처 *</label>
+            <input type="tel" id="bulkTeacherContact" placeholder="010-0000-0000">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="bulkCapacity">신청가능인원 (선택)</label>
+          <input type="text" id="bulkCapacity" placeholder="예: 20명">
+        </div>
+
+        <div class="bulk-note-box">
+          <p>참가자 명단에 포함된 모든 인원은 아래 사항을 확인·동의한 것으로 간주합니다.</p>
+          <ul>
+            <li>심장질환, 호흡기 질환 등 특별한 지병이 없음</li>
+            <li>신청자는 학교 내 달리기 및 걷기 사전연습에 참여함</li>
+          </ul>
+        </div>
+
+        <label class="field-label">참가자 명단 *</label>
+        <div class="bulk-table-wrap">
+          <table class="bulk-table" id="bulkTable">
+            <thead>
+              <tr>
+                <th style="width:36px;">순</th>
+                <th style="width:110px;">구분</th>
+                <th style="width:90px;">학년</th>
+                <th style="width:70px;">반</th>
+                <th>성명</th>
+                <th style="width:80px;">성별</th>
+                <th>비고 (교직원 직위 등)</th>
+                <th style="width:40px;"></th>
+              </tr>
+            </thead>
+            <tbody id="bulkTableBody"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-outline" id="addRowBtn" style="margin-top:10px;">+ 참가자 행 추가</button>
       </div>
 
       <div class="privacy-box">
@@ -101,7 +170,7 @@
           <dt>수집 목적</dt>
           <dd>학교스포츠클럽 대회 참가 신청 접수 및 대회 운영</dd>
           <dt>수집 항목</dt>
-          <dd>학교명, 학년/구분, 대표자 성명, 연락처, 참가자 명단, 비고, 접속 IP주소</dd>
+          <dd>학교명, 학년/구분, 대표자(또는 담당교사) 성명, 연락처, 참가자 명단(학년·반·성명·성별 등), 비고, 접속 IP주소</dd>
           <dt>보유·이용 기간</dt>
           <dd>대회 종료일로부터 1개월간 보관 후 파기</dd>
         </dl>
