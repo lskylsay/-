@@ -61,12 +61,35 @@ competitionSelect.addEventListener("change", () => {
   fillSelect(preferredDatesSelect, [], "선택");
 });
 
-// URL에 ?competition=대회명 이 있으면 해당 대회를 자동으로 선택합니다.
-// (예: 홈페이지 대회 카드의 "신청하기" 버튼에서 넘어온 경우)
+// URL에 ?competition=대회명 이 있으면 해당 대회로 고정하고,
+// 대회 선택 필드는 숨긴 뒤 안내 문구/제목을 그 대회에 맞게 바꿉니다.
+// (홈페이지 대회 카드의 "신청하기" 버튼에서 넘어온 경우)
 const preselectedCompetition = new URLSearchParams(window.location.search).get("competition");
+
+const COMPETITION_LABELS = {
+  "트랙마라톤 축제": "2026. 제천 학교스포츠클럽 트랙마라톤 축제",
+  "충북교육감기 육상대회": "제48회 충청북도교육감기 육상대회",
+};
+
 if (preselectedCompetition && SPORT_OPTIONS[preselectedCompetition]) {
   competitionSelect.value = preselectedCompetition;
   competitionSelect.dispatchEvent(new Event("change"));
+
+  // 대회 선택 필드를 숨기고, 고정된 대회명을 안내 문구로 대체
+  document.getElementById("competitionField").style.display = "none";
+  const lockedNote = document.getElementById("lockedCompetitionNote");
+  lockedNote.textContent = "신청 대회: " + COMPETITION_LABELS[preselectedCompetition];
+  lockedNote.style.display = "";
+
+  // 페이지 제목/배지/부제도 해당 대회에 맞게 변경
+  document.getElementById("pageBib").textContent = preselectedCompetition + " 신청";
+  document.getElementById("pageTitle").textContent = COMPETITION_LABELS[preselectedCompetition] + " 신청";
+  document.getElementById("pageSub").textContent = "아래 양식을 작성해 제출하면 접수가 완료됩니다.";
+
+  // 신청 전 확인 목록에서도 다른 대회의 접수 기간 안내는 숨김
+  document.querySelectorAll("#noticeList li[data-comp]").forEach((li) => {
+    if (li.dataset.comp !== preselectedCompetition) li.style.display = "none";
+  });
 }
 
 sportSelect.addEventListener("change", () => {
