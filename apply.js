@@ -1,6 +1,6 @@
 // 신청 폼 제출 로직
 // - 대회를 선택하면 종목/참가유형 select가 자동으로 채워집니다.
-// - 트랙마라톤 축제는 "개인 신청"과 "교사 일괄 신청(학교 단위)" 두 가지 모드를 지원합니다.
+// - 트랙마라톤 축제는 "개인 신청"과 "교사 일괄 신청(학교 단위, 엑셀 업로드)" 두 가지 모드를 지원합니다.
 // - 최종 데이터는 config.js 의 값을 이용해 Supabase에 바로 저장됩니다.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -88,12 +88,12 @@ const modeIndividualBtn = document.getElementById("modeIndividualBtn");
 const modeBulkBtn = document.getElementById("modeBulkBtn");
 const individualFields = document.getElementById("individualFields");
 const bulkFields = document.getElementById("bulkFields");
+const individualPrivacyBox = document.getElementById("individualPrivacyBox");
 
 let currentMode = "individual";
 
 function setRequired(container, isRequired) {
   container.querySelectorAll("input, select, textarea").forEach((el) => {
-    if (el.dataset.optional === "true") return; // 선택 입력은 건드리지 않음
     el.required = isRequired;
   });
 }
@@ -124,66 +124,15 @@ function setMode(mode) {
 modeIndividualBtn.addEventListener("click", () => setMode("individual"));
 modeBulkBtn.addEventListener("click", () => setMode("bulk"));
 
-/* ============ 교사 일괄 신청: 참가자 행 관리 ============ */
+/* ============ 교사 일괄 신청: 업로드 파일 표시 ============ */
 
-const bulkTableBody = document.getElementById("bulkTableBody");
-const addRowBtn = document.getElementById("addRowBtn");
-let rowCount = 0;
+const bulkFileInput = document.getElementById("bulkFile");
+const bulkFileName = document.getElementById("bulkFileName");
 
-function addParticipantRow() {
-  rowCount += 1;
-  const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td class="row-num">${rowCount}</td>
-    <td>
-      <select class="p-type">
-        <option value="학생">학생</option>
-        <option value="교직원">교직원</option>
-      </select>
-    </td>
-    <td><input type="text" class="p-grade" placeholder="예: 5"></td>
-    <td><input type="text" class="p-class" placeholder="예: 3"></td>
-    <td><input type="text" class="p-name" placeholder="성명"></td>
-    <td>
-      <select class="p-gender">
-        <option value="남">남</option>
-        <option value="여">여</option>
-      </select>
-    </td>
-    <td><input type="text" class="p-note" placeholder="교직원인 경우 직위"></td>
-    <td><button type="button" class="row-remove-btn" title="행 삭제">×</button></td>
-  `;
-  tr.querySelector(".row-remove-btn").addEventListener("click", () => {
-    tr.remove();
-    renumberRows();
-  });
-  bulkTableBody.appendChild(tr);
-}
-
-function renumberRows() {
-  bulkTableBody.querySelectorAll("tr").forEach((tr, i) => {
-    tr.querySelector(".row-num").textContent = i + 1;
-  });
-}
-
-addRowBtn.addEventListener("click", addParticipantRow);
-
-// 초기 5행 생성
-for (let i = 0; i < 5; i++) addParticipantRow();
-
-function collectParticipants() {
-  const rows = Array.from(bulkTableBody.querySelectorAll("tr"));
-  return rows
-    .map((tr) => ({
-      type: tr.querySelector(".p-type").value,
-      grade: tr.querySelector(".p-grade").value.trim(),
-      class_no: tr.querySelector(".p-class").value.trim(),
-      name: tr.querySelector(".p-name").value.trim(),
-      gender: tr.querySelector(".p-gender").value,
-      note: tr.querySelector(".p-note").value.trim(),
-    }))
-    .filter((p) => p.name); // 성명이 입력된 행만 유효한 참가자로 인정
-}
+bulkFileInput.addEventListener("change", () => {
+  const file = bulkFileInput.files[0];
+  bulkFileName.textContent = file ? "선택된 파일: " + file.name : "";
+});
 
 /* ============ URL의 ?competition= 값으로 대회 고정 ============ */
 
@@ -233,13 +182,10 @@ async function getClientIp() {
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  if (currentMode === "bulk") {
-    const participants = collectParticipants();
-    if (participants.length === 0) {
-      statusEl.textContent = "참가자 명단을 최소 1명 이상 입력해 주세요.";
-      statusEl.className = "form-status error";
-      return;
-    }
+  if (currentMode === "bulk" && !bulkFileInput.files[0]) {
+    statusEl.textContent = "작성한 참가신청서 파일을 업로드해 주세요.";
+    statusEl.className = "form-status error";
+    return;
   }
 
   submitBtn.disabled = true;
@@ -251,6 +197,21 @@ form.addEventListener("submit", async (e) => {
   let error;
 
   if (currentMode === "bulk") {
+    const file = bulkFileInput.files[0];
+    const filePath = `${Date.now()}_${file.name}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("bulk-uploads")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      statusEl.textContent = "파일 업로드에 실패했습니다. (" + uploadError.message + ")";
+      statusEl.classList.add("error");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "신청서 제출";
+      return;
+    }
+
     const payload = {
       competition: competitionSelect.value,
       sport: sportSelect.value,
@@ -259,7 +220,8 @@ form.addEventListener("submit", async (e) => {
       teacher_name: document.getElementById("bulkTeacherName").value,
       teacher_contact: document.getElementById("bulkTeacherContact").value,
       requested_count: document.getElementById("bulkCapacity").value || null,
-      participants: collectParticipants(),
+      file_path: filePath,
+      file_name: file.name,
       ip_address: ip,
     };
     ({ error } = await supabase.from("bulk_applications").insert([payload]));
@@ -291,12 +253,9 @@ form.addEventListener("submit", async (e) => {
   statusEl.textContent = "신청이 접수되었습니다. 감사합니다!";
   statusEl.classList.add("success");
   form.reset();
+  bulkFileName.textContent = "";
 
-  if (currentMode === "bulk") {
-    bulkTableBody.innerHTML = "";
-    rowCount = 0;
-    for (let i = 0; i < 5; i++) addParticipantRow();
-  } else {
+  if (currentMode !== "bulk") {
     fillSelect(sportSelect, [], "먼저 대회를 선택하세요");
     sportSelect.disabled = true;
     preferredDatesField.style.display = "none";
