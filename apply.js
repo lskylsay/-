@@ -61,6 +61,14 @@ competitionSelect.addEventListener("change", () => {
   fillSelect(preferredDatesSelect, [], "선택");
 });
 
+// URL에 ?competition=대회명 이 있으면 해당 대회를 자동으로 선택합니다.
+// (예: 홈페이지 대회 카드의 "신청하기" 버튼에서 넘어온 경우)
+const preselectedCompetition = new URLSearchParams(window.location.search).get("competition");
+if (preselectedCompetition && SPORT_OPTIONS[preselectedCompetition]) {
+  competitionSelect.value = preselectedCompetition;
+  competitionSelect.dispatchEvent(new Event("change"));
+}
+
 sportSelect.addEventListener("change", () => {
   const sport = sportSelect.value;
   const dates = DATE_OPTIONS[sport];
