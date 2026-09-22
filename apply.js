@@ -80,12 +80,25 @@ const form = document.getElementById("applyForm");
 const statusEl = document.getElementById("formStatus");
 const submitBtn = document.getElementById("submitBtn");
 
+// 공인 IP 조회 (조회 실패 시 null로 처리하고 제출은 그대로 진행)
+async function getClientIp() {
+  try {
+    const res = await fetch("https://api.ipify.org?format=json");
+    const data = await res.json();
+    return data.ip || null;
+  } catch {
+    return null;
+  }
+}
+
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   submitBtn.disabled = true;
   submitBtn.textContent = "제출 중…";
   statusEl.textContent = "";
   statusEl.className = "form-status";
+
+  const ip = await getClientIp();
 
   const data = new FormData(form);
   const payload = {
@@ -98,6 +111,7 @@ form.addEventListener("submit", async (e) => {
     contact: data.get("contact"),
     members: data.get("members") || null,
     note: data.get("note") || null,
+    ip_address: ip,
   };
 
   const { error } = await supabase.from("applications").insert([payload]);
