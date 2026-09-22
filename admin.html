@@ -90,8 +90,12 @@
             <p>양식을 내려받아 결과를 작성한 뒤, 그대로 업로드하면 한 번에 등록됩니다.</p>
             <a href="results-upload-template.xlsx" download class="btn btn-outline" style="margin-right:8px;">양식 다운로드 (.xlsx)</a>
             <div style="margin-top:12px;">
-              <input type="file" id="resultsFileInput" accept=".xlsx,.xls">
-              <button type="button" class="btn btn-primary" id="resultsUploadBtn" style="margin-left:8px;">업로드</button>
+              <div class="dropzone" id="resultsFileDropzone" tabindex="0">
+                <input type="file" id="resultsFileInput" accept=".xlsx,.xls" class="dropzone-input">
+                <p class="dropzone-text">파일을 끌어다 놓거나 클릭하여 선택<span class="dropzone-sub">.xlsx, .xls</span></p>
+              </div>
+              <p id="resultsFileName" class="sub" style="margin:6px 0 8px;"></p>
+              <button type="button" class="btn btn-primary" id="resultsUploadBtn">업로드</button>
             </div>
             <p id="resultsUploadStatus" class="form-status" style="margin-top:8px;"></p>
           </div>
@@ -173,7 +177,11 @@
             </div>
             <div class="field">
               <label for="gFile">파일 *</label>
-              <input type="file" id="gFile">
+              <div class="dropzone" id="gFileDropzone" tabindex="0">
+                <input type="file" id="gFile" class="dropzone-input">
+                <p class="dropzone-text">파일을 끌어다 놓거나 클릭하여 선택</p>
+              </div>
+              <p id="gFileName" class="sub" style="margin:6px 0 0;"></p>
             </div>
           </div>
           <div class="field">
@@ -220,7 +228,11 @@
           </div>
           <div class="field">
             <label for="spFile">첨부파일 (선택)</label>
-            <input type="file" id="spFile">
+            <div class="dropzone" id="spFileDropzone" tabindex="0">
+              <input type="file" id="spFile" class="dropzone-input">
+              <p class="dropzone-text">파일을 끌어다 놓거나 클릭하여 선택</p>
+            </div>
+            <p id="spFileName" class="sub" style="margin:6px 0 0;"></p>
           </div>
           <button type="button" class="btn btn-primary" id="spUploadBtn">등록</button>
           <p id="spUploadStatus" class="form-status"></p>
