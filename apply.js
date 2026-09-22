@@ -143,6 +143,10 @@ function setMode(mode) {
   individualFields.style.display = isBulk ? "none" : "";
   bulkFields.style.display = isBulk ? "" : "none";
 
+  const sportField = document.getElementById("sportField");
+  sportField.style.display = isBulk ? "none" : "";
+  sportSelect.required = !isBulk;
+
   modeIndividualBtn.classList.toggle("active", !isBulk);
   modeBulkBtn.classList.toggle("active", isBulk);
 
@@ -245,7 +249,7 @@ form.addEventListener("submit", async (e) => {
 
     const payload = {
       competition: competitionSelect.value,
-      sport: sportSelect.value,
+      sport: sportSelect.value || null,
       school: document.getElementById("bulkSchool").value,
       principal_name: document.getElementById("bulkPrincipal").value || null,
       teacher_name: document.getElementById("bulkTeacherName").value,
