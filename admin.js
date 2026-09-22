@@ -127,4 +127,101 @@ supabase.auth.onAuthStateChange(() => {
   checkAuthAndRender();
 });
 
+/* ============ 개인 신청 / 교사 일괄 신청 탭 전환 ============ */
+
+const adminIndividualTabBtn = document.getElementById("adminIndividualTabBtn");
+const adminBulkTabBtn = document.getElementById("adminBulkTabBtn");
+const individualAdminSection = document.getElementById("individualAdminSection");
+const bulkAdminSection = document.getElementById("bulkAdminSection");
+const logoutBtn2 = document.getElementById("logoutBtn2");
+const bulkRefreshBtn = document.getElementById("bulkRefreshBtn");
+const bulkCountLabel = document.getElementById("bulkCountLabel");
+const bulkListContainer = document.getElementById("bulkListContainer");
+
+let bulkLoaded = false;
+
+adminIndividualTabBtn.addEventListener("click", () => {
+  adminIndividualTabBtn.classList.add("active");
+  adminBulkTabBtn.classList.remove("active");
+  individualAdminSection.style.display = "";
+  bulkAdminSection.style.display = "none";
+});
+
+adminBulkTabBtn.addEventListener("click", () => {
+  adminBulkTabBtn.classList.add("active");
+  adminIndividualTabBtn.classList.remove("active");
+  individualAdminSection.style.display = "none";
+  bulkAdminSection.style.display = "";
+  if (!bulkLoaded) loadBulkApplications();
+});
+
+logoutBtn2.addEventListener("click", doLogout);
+bulkRefreshBtn.addEventListener("click", loadBulkApplications);
+
+function renderBulkList(rows) {
+  bulkCountLabel.textContent = `총 ${rows.length}건 (참가자 합계 ${rows.reduce((sum, r) => sum + (r.participants || []).length, 0)}명)`;
+
+  bulkListContainer.innerHTML = rows
+    .map((r) => {
+      const date = new Date(r.created_at).toLocaleString("ko-KR");
+      const participants = r.participants || [];
+      const participantRows = participants
+        .map(
+          (p, i) => `
+          <tr>
+            <td class="row-num">${i + 1}</td>
+            <td>${p.type || ""}</td>
+            <td>${p.grade || ""}</td>
+            <td>${p.class_no || ""}</td>
+            <td>${p.name || ""}</td>
+            <td>${p.gender || ""}</td>
+            <td>${p.note || ""}</td>
+          </tr>`
+        )
+        .join("");
+
+      return `
+        <div class="bulk-admin-card">
+          <div class="bulk-admin-head">
+            <div>
+              <strong>${r.school || ""}</strong>
+              <span class="sub" style="margin:0;">${r.competition || ""} · ${r.sport || ""}</span>
+            </div>
+            <span class="sub" style="margin:0;">${date}</span>
+          </div>
+          <dl class="privacy-dl" style="margin-top:12px;">
+            <dt>학교장</dt><dd>${r.principal_name || "-"}</dd>
+            <dt>담당교사</dt><dd>${r.teacher_name || ""} (${r.teacher_contact || ""})</dd>
+            <dt>신청가능인원</dt><dd>${r.requested_count || "-"}</dd>
+            <dt>참가 인원</dt><dd>${participants.length}명</dd>
+            <dt>IP</dt><dd style="font-family:var(--font-mono); font-size:0.82rem;">${r.ip_address || ""}</dd>
+          </dl>
+          <div class="bulk-table-wrap" style="margin-top:12px;">
+            <table class="bulk-table">
+              <thead>
+                <tr><th style="width:36px;">순</th><th>구분</th><th>학년</th><th>반</th><th>성명</th><th>성별</th><th>비고</th></tr>
+              </thead>
+              <tbody>${participantRows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    })
+    .join("");
+}
+
+async function loadBulkApplications() {
+  const { data, error } = await supabase
+    .from("bulk_applications")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    bulkCountLabel.textContent = "불러오기 실패: " + error.message;
+    return;
+  }
+
+  bulkLoaded = true;
+  renderBulkList(data || []);
+}
+
 checkAuthAndRender();
