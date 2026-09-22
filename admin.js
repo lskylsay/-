@@ -4,6 +4,7 @@
 // 이 파일의 이메일 체크는 화면 표시용 2차 확인입니다.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { initDropzone } from "./dropzone.js";
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
@@ -237,6 +238,8 @@ const resultsTableBody = document.getElementById("resultsTableBody");
 const resAddBtn = document.getElementById("resAddBtn");
 const resAddStatus = document.getElementById("resAddStatus");
 const resultsFileInput = document.getElementById("resultsFileInput");
+const resultsFileName = document.getElementById("resultsFileName");
+initDropzone(document.getElementById("resultsFileDropzone"), resultsFileInput, resultsFileName);
 const resultsUploadBtn = document.getElementById("resultsUploadBtn");
 const resultsUploadStatus = document.getElementById("resultsUploadStatus");
 
@@ -398,6 +401,8 @@ resultsUploadBtn.addEventListener("click", async () => {
       `${parsed.length}건 업로드 완료.` + (skipped.length ? ` (형식이 맞지 않아 ${skipped.length}건 건너뜀)` : "");
     resultsUploadStatus.className = "form-status success";
     resultsFileInput.value = "";
+    resultsFileName.textContent = "";
+    document.getElementById("resultsFileDropzone").classList.remove("has-file");
     loadResultsAdmin();
   } catch (err) {
     resultsUploadBtn.disabled = false;
@@ -413,6 +418,7 @@ const gCountLabel = document.getElementById("gCountLabel");
 const gListContainer = document.getElementById("gListContainer");
 const gTitle = document.getElementById("gTitle");
 const gFile = document.getElementById("gFile");
+initDropzone(document.getElementById("gFileDropzone"), gFile, document.getElementById("gFileName"));
 const gNote = document.getElementById("gNote");
 const gUploadBtn = document.getElementById("gUploadBtn");
 const gUploadStatus = document.getElementById("gUploadStatus");
@@ -520,6 +526,8 @@ gUploadBtn.addEventListener("click", async () => {
   gTitle.value = "";
   gNote.value = "";
   gFile.value = "";
+  document.getElementById("gFileName").textContent = "";
+  document.getElementById("gFileDropzone").classList.remove("has-file");
   loadGuidelinesAdmin();
 });
 
@@ -538,6 +546,7 @@ const spCategory = document.getElementById("spCategory");
 const spTitle = document.getElementById("spTitle");
 const spContent = document.getElementById("spContent");
 const spFile = document.getElementById("spFile");
+initDropzone(document.getElementById("spFileDropzone"), spFile, document.getElementById("spFileName"));
 const spUploadBtn = document.getElementById("spUploadBtn");
 const spUploadStatus = document.getElementById("spUploadStatus");
 const spFilterRow = document.getElementById("spFilterRow");
@@ -676,6 +685,8 @@ spUploadBtn.addEventListener("click", async () => {
   spTitle.value = "";
   spContent.value = "";
   spFile.value = "";
+  document.getElementById("spFileName").textContent = "";
+  document.getElementById("spFileDropzone").classList.remove("has-file");
   spCategory.value = "";
   loadSchoolpeAdmin();
 });
