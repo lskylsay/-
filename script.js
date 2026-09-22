@@ -1,22 +1,43 @@
-/* 결과 페이지 렌더링 — results-data.js 의 RESULTS 배열을 읽어 그립니다.
-   이 파일은 수정할 필요가 없습니다. 결과 내용은 results-data.js 에서 관리하세요. */
+// 결과 페이지 렌더링 — Supabase의 results 테이블에서 데이터를 읽어 그립니다.
+// 결과 입력/수정은 관리자 페이지(admin.html)의 "대회 결과 관리" 탭에서 합니다.
 
-(function () {
-  const container = document.getElementById("resultsContainer");
-  const filterRow = document.getElementById("filterRow");
-  if (!container || typeof RESULTS === "undefined") return;
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-  const sports = ["전체", ...Array.from(new Set(RESULTS.map((g) => g.sport)))];
+const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
-  // URL에 ?competition=대회명 이 있으면 해당 대회 탭을 자동으로 선택합니다.
+const container = document.getElementById("resultsContainer");
+const filterRow = document.getElementById("filterRow");
+
+if (container && filterRow) {
+  let RESULTS = [];
+  let sports = ["전체"];
+
   const preselected = new URLSearchParams(window.location.search).get("competition");
-  let activeSport = sports.includes(preselected) ? preselected : "전체";
+  let activeSport = "전체";
 
   function rankClass(rank) {
     if (rank === 1) return "gold";
     if (rank === 2) return "silver";
     if (rank === 3) return "bronze";
     return "";
+  }
+
+  function groupResults(rows) {
+    // competition + division 조합별로 그룹핑
+    const map = new Map();
+    rows.forEach((r) => {
+      const key = r.competition + "|||" + r.division;
+      if (!map.has(key)) {
+        map.set(key, {
+          sport: r.competition,
+          division: r.division,
+          date: r.date,
+          entries: [],
+        });
+      }
+      map.get(key).entries.push({ rank: r.rank, name: r.name, note: r.note });
+    });
+    return Array.from(map.values());
   }
 
   function renderFilters() {
@@ -42,7 +63,7 @@
         : RESULTS.filter((g) => g.sport === activeSport);
 
     if (groups.length === 0) {
-      container.innerHTML = '<p class="empty-note">해당 종목의 결과가 없습니다.</p>';
+      container.innerHTML = '<p class="empty-note">아직 게시된 결과가 없습니다.</p>';
       return;
     }
 
@@ -62,6 +83,7 @@
         empty.textContent = "결과 발표 예정입니다.";
         section.appendChild(empty);
       } else {
+        const sortedEntries = [...group.entries].sort((a, b) => (a.rank || 999) - (b.rank || 999));
         const table = document.createElement("table");
         table.className = "result-table";
         table.innerHTML = `
@@ -69,11 +91,11 @@
             <tr><th style="width:60px;">순위</th><th>이름 / 팀</th><th>비고</th></tr>
           </thead>
           <tbody>
-            ${group.entries
+            ${sortedEntries
               .map(
                 (e) => `
               <tr>
-                <td class="rank ${rankClass(e.rank)}">${e.rank}</td>
+                <td class="rank ${rankClass(e.rank)}">${e.rank ?? ""}</td>
                 <td>${e.name}</td>
                 <td style="color:var(--ink-soft);">${e.note || ""}</td>
               </tr>`
@@ -88,6 +110,28 @@
     });
   }
 
-  renderFilters();
-  renderResults();
-})();
+  async function loadResults() {
+    container.innerHTML = '<p class="empty-note">불러오는 중…</p>';
+
+    const { data, error } = await supabase
+      .from("results")
+      .select("*")
+      .order("competition", { ascending: true })
+      .order("division", { ascending: true })
+      .order("rank", { ascending: true });
+
+    if (error) {
+      container.innerHTML = '<p class="empty-note">결과를 불러오지 못했습니다.</p>';
+      return;
+    }
+
+    RESULTS = groupResults(data || []);
+    sports = ["전체", ...Array.from(new Set(RESULTS.map((g) => g.sport)))];
+    activeSport = sports.includes(preselected) ? preselected : "전체";
+
+    renderFilters();
+    renderResults();
+  }
+
+  loadResults();
+}
