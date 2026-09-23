@@ -91,6 +91,7 @@ function renderTable() {
           <td>${r.contact || ""}</td>
           <td>${detailCell}</td>
           <td style="font-family:var(--font-mono); font-size:0.82rem; color:var(--ink-soft);">${r.ip_address || ""}</td>
+          <td>${r.privacy_consent ? '<span class="type-badge type-badge-bulk">동의</span>' : '<span class="type-badge" style="background:#F3E3E1; color:var(--clay-dark);">미동의</span>'}</td>
         </tr>`;
     })
     .join("");
@@ -141,6 +142,7 @@ async function loadRoster() {
     contactName: r.leader_name,
     contact: r.contact,
     ip_address: r.ip_address,
+    privacy_consent: r.privacy_consent,
     raw: r,
   }));
 
@@ -154,6 +156,7 @@ async function loadRoster() {
     contactName: r.teacher_name,
     contact: r.teacher_contact,
     ip_address: r.ip_address,
+    privacy_consent: r.privacy_consent,
     raw: r,
   }));
 
