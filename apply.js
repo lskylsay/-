@@ -212,8 +212,16 @@ async function getClientIp() {
   }
 }
 
+const privacyConsentInput = document.getElementById("privacyConsent");
+
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
+
+  if (!privacyConsentInput.checked) {
+    statusEl.textContent = "개인정보 수집·이용에 동의해야 제출할 수 있습니다.";
+    statusEl.className = "form-status error";
+    return;
+  }
 
   if (currentMode === "bulk" && !bulkFileInput.files[0]) {
     statusEl.textContent = "작성한 참가신청서 파일을 업로드해 주세요.";
@@ -227,6 +235,7 @@ form.addEventListener("submit", async (e) => {
   statusEl.className = "form-status";
 
   const ip = await getClientIp();
+  const privacyConsent = privacyConsentInput.checked;
   let error;
 
   if (currentMode === "bulk") {
@@ -256,6 +265,7 @@ form.addEventListener("submit", async (e) => {
       file_path: filePath,
       file_name: file.name,
       ip_address: ip,
+      privacy_consent: privacyConsent,
     };
     ({ error } = await supabase.from("bulk_applications").insert([payload]));
   } else {
@@ -271,6 +281,7 @@ form.addEventListener("submit", async (e) => {
       members: data.get("members") || null,
       note: data.get("note") || null,
       ip_address: ip,
+      privacy_consent: privacyConsent,
     };
     ({ error } = await supabase.from("applications").insert([payload]));
   }
