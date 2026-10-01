@@ -359,7 +359,7 @@ resultsUploadBtn.addEventListener("click", async () => {
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
 
-    const validCompetitions = ["트랙마라톤 축제", "충북교육감기 육상대회"];
+    const validCompetitions = ["트랙마라톤 축제", "충북교육감기 육상대회", "제43회 교육장기 육상경기대회"];
     const parsed = [];
     const skipped = [];
 
