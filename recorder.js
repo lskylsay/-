@@ -37,9 +37,11 @@ const recRefreshBtn = document.getElementById("recRefreshBtn");
 const recSaveAllBtn = document.getElementById("recSaveAllBtn");
 const recStatus = document.getElementById("recStatus");
 const recTableBody = document.getElementById("recTableBody");
+const recBibSearch = document.getElementById("recBibSearch");
 
 let rosterByCompetition = []; // 현재 선택된 대회의 전체 참가자 (종목 선택용)
 let currentRows = []; // 현재 선택된 대회+종목의 명단 (결과 매칭 포함)
+let bibFilter = "";
 
 async function loadRosterForCompetition() {
   const competition = recCompetition.value;
@@ -124,28 +126,67 @@ async function loadRowsForSport() {
       return a.bib - b.bib;
     });
 
+  bibFilter = "";
+  recBibSearch.value = "";
   renderRecTable();
 }
 
 function renderRecTable() {
-  recTableBody.innerHTML = currentRows
-    .map(
-      (row, idx) => `
-      <tr>
+  const filtered = bibFilter
+    ? currentRows.filter((r) => String(r.bib ?? "").startsWith(bibFilter))
+    : currentRows;
+
+  recTableBody.innerHTML = filtered
+    .map((row) => {
+      const idx = currentRows.indexOf(row);
+      return `
+      <tr${bibFilter && String(row.bib ?? "") === bibFilter ? ' style="background:#FBF0EC;"' : ""}>
         <td style="font-family:var(--font-mono); font-weight:700;">${row.bib ?? ""}</td>
         <td>${row.school || ""}</td>
         <td>${row.name || ""}</td>
         <td><input type="number" min="1" class="rec-rank-input" data-idx="${idx}" value="${row.rank}" style="width:70px; padding:6px; border:1px solid var(--line); border-radius:4px;"></td>
         <td><input type="text" class="rec-note-input" data-idx="${idx}" value="${row.note}" style="width:100%; padding:6px; border:1px solid var(--line); border-radius:4px;"></td>
         <td><button type="button" class="btn btn-outline rec-save-btn" data-idx="${idx}" style="font-size:0.78rem; padding:6px 10px;">저장</button></td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join("");
 
   recTableBody.querySelectorAll(".rec-save-btn").forEach((btn) => {
     btn.addEventListener("click", () => saveRow(Number(btn.dataset.idx)));
   });
+
+  recTableBody.querySelectorAll(".rec-rank-input").forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        saveRowAndAdvance(Number(input.dataset.idx));
+      }
+    });
+  });
+
+  // 검색어와 정확히 일치하는 배번이 하나면 순위 입력란에 바로 포커스
+  if (bibFilter && filtered.length >= 1) {
+    const exactIdx = currentRows.indexOf(filtered[0]);
+    const rankInput = recTableBody.querySelector(`.rec-rank-input[data-idx="${exactIdx}"]`);
+    if (rankInput) {
+      rankInput.focus();
+      rankInput.select();
+    }
+  }
 }
+
+async function saveRowAndAdvance(idx) {
+  await saveRow(idx);
+  bibFilter = "";
+  recBibSearch.value = "";
+  renderRecTable();
+  recBibSearch.focus();
+}
+
+recBibSearch.addEventListener("input", () => {
+  bibFilter = recBibSearch.value.trim();
+  renderRecTable();
+});
 
 async function saveRow(idx) {
   const row = currentRows[idx];
