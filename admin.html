@@ -58,19 +58,14 @@
             <h4>취합된 신청자 명단 엑셀로 일괄 등록</h4>
             <p>이미 취합해 두신 신청자 명단 파일을 올리면, 각 행이 "개인 신청" 건으로 한 번에 등록됩니다.</p>
             <a href="admin-bulk-register-template.xlsx" download class="btn btn-outline" style="margin-bottom:12px; display:inline-block;">양식 다운로드 (.xlsx)</a>
-            <div class="form-row">
-              <div class="field">
-                <label for="rosterUploadCompetition">대회 *</label>
-                <select id="rosterUploadCompetition">
-                  <option value="">선택</option>
-                  <option value="트랙마라톤 축제">트랙마라톤 축제</option>
-                  <option value="충북교육감기 육상대회">충북교육감기 육상대회</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="rosterUploadSport">종목/유형 *</label>
-                <input type="text" id="rosterUploadSport" placeholder="예: 3km 마라톤 (초등부)">
-              </div>
+            <p class="sub" style="margin:0 0 10px;">엑셀에 '초등'/'중등' 시트가 따로 있으면 각각 3km·5km 종목으로 자동 구분해 등록합니다.</p>
+            <div class="field">
+              <label for="rosterUploadCompetition">대회 *</label>
+              <select id="rosterUploadCompetition">
+                <option value="">선택</option>
+                <option value="트랙마라톤 축제">트랙마라톤 축제</option>
+                <option value="충북교육감기 육상대회">충북교육감기 육상대회</option>
+              </select>
             </div>
             <div class="dropzone" id="rosterUploadDropzone" tabindex="0">
               <input type="file" id="rosterUploadFile" accept=".xlsx,.xls" class="dropzone-input">
