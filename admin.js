@@ -280,7 +280,6 @@ rosterUploadBtn.addEventListener("click", async () => {
           contact: null,
           members: e.memberDetail || null,
           note: null,
-          privacy_consent: true,
         });
       });
 
