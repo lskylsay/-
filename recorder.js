@@ -114,7 +114,7 @@ async function loadRowsForSport() {
         bib: r.bib_number,
         school: r.school,
         name: r.name,
-        rank: existing ? existing.rank : "",
+        rank: existing ? (existing.record_time || existing.rank || "") : "",
         note: existing ? existing.note || "" : "",
         resultId: existing ? existing.id : null,
       };
@@ -152,7 +152,7 @@ function renderRecTable() {
         <td style="font-family:var(--font-mono); font-weight:700;">${row.bib ?? ""}</td>
         <td>${row.school || ""}</td>
         <td>${row.name || ""}</td>
-        <td><input type="number" min="1" class="rec-rank-input" data-idx="${idx}" value="${row.rank}" style="width:70px; padding:6px; border:1px solid var(--line); border-radius:4px;"></td>
+        <td><input type="text" inputmode="numeric" placeholder="예: 1212" class="rec-rank-input" data-idx="${idx}" value="${row.rank}" style="width:90px; padding:6px; border:1px solid var(--line); border-radius:4px;"></td>
         <td><input type="text" class="rec-note-input" data-idx="${idx}" value="${row.note}" style="width:100%; padding:6px; border:1px solid var(--line); border-radius:4px;"></td>
         <td><button type="button" class="btn btn-outline rec-save-btn" data-idx="${idx}" style="font-size:0.78rem; padding:6px 10px;">저장</button></td>
       </tr>`;
@@ -208,23 +208,50 @@ recBibSearch.addEventListener("keydown", (e) => {
 });
 document.getElementById("recBibSearchBtn").addEventListener("click", runSearch);
 
+// "1212" → "12:12", "11212" → "1:12:12" 처럼 숫자만 입력해도 시:분:초 형식으로 변환
+function parseTimeInput(raw) {
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return null;
+
+  let h = 0, m = 0, s = 0;
+  if (digits.length <= 2) {
+    s = parseInt(digits, 10);
+  } else if (digits.length <= 4) {
+    const padded = digits.padStart(4, "0");
+    m = parseInt(padded.slice(0, 2), 10);
+    s = parseInt(padded.slice(2), 10);
+  } else {
+    s = parseInt(digits.slice(-2), 10);
+    m = parseInt(digits.slice(-4, -2), 10);
+    h = parseInt(digits.slice(0, -4), 10);
+  }
+
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+}
+
 async function saveRow(idx) {
   const row = currentRows[idx];
   const rankInput = recTableBody.querySelector(`.rec-rank-input[data-idx="${idx}"]`);
   const noteInput = recTableBody.querySelector(`.rec-note-input[data-idx="${idx}"]`);
-  const rank = rankInput.value;
+  const rawInput = rankInput.value;
   const note = noteInput.value;
 
-  if (!rank) {
+  if (!rawInput) {
     recStatus.textContent = `${row.name}: 기록을 입력해 주세요.`;
     recStatus.className = "form-status error";
     return;
   }
 
+  const recordTime = parseTimeInput(rawInput);
+  rankInput.value = recordTime; // 입력창에도 변환된 시간 형식을 그대로 보여줌
+
   const payload = {
     competition: recCompetition.value,
     division: recSport.value,
-    rank: Number(rank),
+    rank: null,
+    record_time: recordTime,
     name: row.name,
     note: note || null,
     applications_id: row.applications_id,
@@ -243,7 +270,7 @@ async function saveRow(idx) {
 
   if (data && data[0]) {
     row.resultId = data[0].id;
-    row.rank = rank;
+    row.rank = recordTime;
     row.note = note;
   }
 
@@ -274,7 +301,8 @@ recSaveAllBtn.addEventListener("click", async () => {
     return {
       competition: recCompetition.value,
       division: recSport.value,
-      rank: Number(rankInput.value),
+      rank: null,
+      record_time: parseTimeInput(rankInput.value),
       name: row.name,
       note: noteInput.value || null,
       applications_id: row.applications_id,
