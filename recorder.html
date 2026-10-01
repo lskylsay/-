@@ -38,6 +38,13 @@
 
     <!-- 기록 입력 화면 -->
     <div id="recorderApp" style="display:none;">
+      <div class="filter-row" style="margin-bottom:24px;">
+        <button type="button" class="filter-btn active" id="recInputTabBtn">기록 입력</button>
+        <button type="button" class="filter-btn" id="recResultsTabBtn">대회 결과 (실명 확인)</button>
+      </div>
+
+      <!-- 탭 1: 기록 입력 -->
+      <div id="recInputSection">
       <div class="form-row">
         <div class="field">
           <label for="recCompetition">대회 *</label>
@@ -86,6 +93,23 @@
           <tbody id="recTableBody"></tbody>
         </table>
       </div>
+      </div>
+
+      <!-- 탭 2: 대회 결과 (실명 확인) — results.html과 같은 화면, script.js 사용 -->
+      <div id="recResultsSection" style="display:none;">
+        <p style="margin:0 0 20px; padding:12px 16px; border-left:4px solid var(--clay); background:#fff; color:var(--ink);">
+          경기기록원 전용 화면입니다. 공개 결과 페이지와 달리 이름을 가리지 않고 실명으로 보여줍니다.
+        </p>
+
+        <div class="field results-search">
+          <label for="resultsSearch">배번 또는 이름으로 찾기</label>
+          <input type="search" id="resultsSearch" placeholder="예: 125 또는 홍길동" autocomplete="off" enterkeyhint="search">
+        </div>
+
+        <div class="filter-row" id="filterRow"></div>
+        <div class="filter-row filter-row-sub" id="sportFilterRow"></div>
+        <div id="resultsContainer"></div>
+      </div>
     </div>
   </div>
 </section>
@@ -96,7 +120,36 @@
   </div>
 </footer>
 
+<div class="record-overlay" id="recordOverlay" hidden>
+  <div class="record-card" id="recordCard" role="dialog" aria-modal="true" aria-labelledby="recordOverlayName" aria-describedby="recordOverlayHint">
+    <div class="record-toolbar">
+      <button type="button" class="record-tool record-fullscreen" id="recordOverlayFullscreen" aria-label="전체화면" title="전체화면" hidden>
+        <svg class="icon-enter" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg class="icon-exit" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" class="record-tool record-close" id="recordOverlayClose" aria-label="닫기" title="닫기">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="record-body" id="recordOverlayBody">
+      <p class="record-competition" id="recordOverlayCompetition"></p>
+      <p class="record-sport" id="recordOverlaySport"></p>
+      <div class="record-meta">
+        <span class="record-bib" id="recordOverlayBib"></span>
+        <span class="record-school" id="recordOverlaySchool"></span>
+      </div>
+      <p class="record-name" id="recordOverlayName"></p>
+      <div class="record-time-label">기록</div>
+      <div class="record-time" id="recordOverlayTime"></div>
+    </div>
+    <p class="sr-only" id="recordOverlayHint">좌우 화살표 키로 이전·다음 참가자를 볼 수 있습니다.</p>
+    <p class="sr-only" id="recordOverlayStatus" aria-live="polite"></p>
+  </div>
+</div>
+
 <script src="config.js"></script>
+<script>window.RESULTS_SHOW_FULL_NAMES = true;</script>
 <script type="module" src="recorder.js"></script>
+<script type="module" src="script.js"></script>
 </body>
 </html>

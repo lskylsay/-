@@ -17,7 +17,7 @@
 | `contest.html` | — | 대회 안내 |
 | `apply.html` | `apply.js` | 참가 신청 (개인 / 트랙마라톤 교사 일괄 엑셀 신청) → `applications`, `bulk_applications`, storage `bulk-uploads` |
 | `admin.html` | `admin.js` | 관리자 (GitHub OAuth 로그인, `ADMIN_EMAIL`만): 신청 관리·배번 등록, 대회 결과 관리(엑셀 업로드), 대회요강·학교체육 게시글 업로드 |
-| `recorder.html` | `recorder.js` | 경기기록원 기록 입력 (PIN 입장, 로그인 없이 anon 키로 동작) |
+| `recorder.html` | `recorder.js` + `script.js` | 경기기록원 (PIN 입장, 로그인 없이 anon 키로 동작). 탭: 기록 입력 / 대회 결과(실명 확인) |
 | `results.html` | `script.js` | 대회 결과 공개 조회 (RPC `get_public_results`) |
 | `guidelines.html` | `guidelines.js` | 대회요강 게시판 (`guidelines`, storage `guideline-files`). `preview_path`(미리보기용 PDF)가 있으면 제목 클릭 시 화면 안 모달로 PDF 표시(원본 다운로드·닫기·Esc), 없으면 바로 다운로드 |
 | `schoolpe.html`, `schoolpe-*.html` | `schoolpe-board.js` | 학교체육업무지원 게시판. 각 페이지가 `window.SCHOOLPE_CATEGORY`를 지정 (`school_pe_posts`, storage `schoolpe-files`) |
@@ -48,7 +48,9 @@
 - `applications_id`에 UNIQUE 제약 → 기록원 페이지는 `upsert(..., { onConflict: "applications_id" })`로 저장
 - 대회명 목록은 `recorder.html` select, `script.js`의 `KNOWN_COMPETITIONS`, `apply.js`의 `SPORT_OPTIONS`에 각각 하드코딩되어 있어 대회 추가 시 모두 수정해야 합니다.
 
-## 경기기록원(`recorder.js`) 동작
+## 경기기록원(`recorder.html` + `recorder.js`) 동작
+- PIN(6680) 입장 후 맨 위 탭 2개(`filter-btn`): "기록 입력" / "대회 결과 (실명 확인)"
+- "대회 결과 (실명 확인)" 탭은 results.html과 같은 마크업(검색칸·대회/종목 버튼·표·`#recordOverlay`)에 `script.js`를 그대로 불러옴. 그 앞에 `window.RESULTS_SHOW_FULL_NAMES = true`를 두어 표·카드 모두 실명 표시. 탭을 열 때마다 `results:reload` 이벤트로 다시 불러와 방금 입력한 기록 반영
 - 대회 선택 → RPC로 명단 로드 → 종목 선택 → 기존 `results`와 `applications_id`로 매칭해 배번순 표시
 - 기록 입력은 숫자만: `1212` → `12:12`, `11212` → `1:12:12` (`parseTimeInput`)
 - 기록 칸을 비우고 저장(개별/전체)하면 저장된 `results` 행을 삭제하고 입력칸·비고칸을 비움. 저장된 행이 없으면 조용히 넘어감.
@@ -56,7 +58,10 @@
 
 ## 대회 결과(`results.html` + `script.js`) 동작
 - 대회 버튼 → `get_public_results` 로 참가자 전체 로드 → 종목(`sport`) 버튼 → 배번순 표 (배번/학교/이름/기록/비고, 기록 없으면 `-`)
-- 표의 이름은 `maskName`으로 가운데 글자를 O로 가림 (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남OO수). 검색은 실제 이름으로, 기념촬영 카드는 전체 이름 표시
+- 이름은 표와 기념촬영 카드 모두 `displayName` → `maskName`으로 가운데 글자를 O로 가림 (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남OO수). 검색은 실명으로 동작
+  - `script.js`보다 먼저 `window.RESULTS_SHOW_FULL_NAMES = true`를 두면 표·카드 모두 실명 (경기기록원 결과 탭에서 사용)
+  - 이름 가림은 화면 표시만의 처리이며, `get_public_results`는 실명을 그대로 돌려줌
+- window에 `results:reload` 이벤트를 보내면 보고 있던 종목을 유지한 채 다시 불러옴
 - `?competition=대회명` 쿼리로 대회 미리 선택 (`contest.html`의 "결과보기" 링크가 사용)
 - 검색칸: 숫자는 배번 앞자리 일치, 그 외는 이름 포함 검색. 검색 중에는 종목과 관계없이 대회 전체에서 찾음
 - 배번·이름 클릭 → 기념촬영용 전체화면 카드(`#recordOverlay`, CSS `.record-*`). 닫기 버튼·ESC·바깥 클릭으로 닫힘, 휴대폰 가로 화면은 2열 배치

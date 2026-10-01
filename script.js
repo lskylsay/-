@@ -1,6 +1,9 @@
 // 결과 페이지 렌더링 — Supabase RPC get_public_results(comp)로 대회별 참가자 전체와 기록을 읽어
 // 종목(sport)별로 배번순 표를 그립니다. 기록이 없는 참가자도 함께 표시됩니다.
 // 배번·이름을 누르면 기념촬영용 전체화면 기록 카드가 열립니다.
+// - 이름은 표와 카드 모두 가려서 표시 (홍길동 → 홍O동). 검색은 실명으로 동작
+// - 이 스크립트보다 먼저 window.RESULTS_SHOW_FULL_NAMES = true 를 두면 실명 표시 (경기기록원 결과 탭)
+// - window에 "results:reload" 이벤트를 보내면 보고 있던 종목을 유지한 채 결과를 다시 불러옴
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -44,7 +47,7 @@ const COMPETITION_DISPLAY_NAMES = {
   // 예) "충북교육감기 육상대회": "2026. 충북교육감기 육상대회",
 };
 
-// 표에 보이는 이름은 개인정보 보호를 위해 첫·마지막 글자만 남기고 가운데를 O로 가림
+// 공개 화면의 이름은 개인정보 보호를 위해 첫·마지막 글자만 남기고 가운데를 O로 가림
 // (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남OO수). 이름 중간의 띄어쓰기는 그대로 둠
 function maskName(name) {
   const chars = Array.from(String(name ?? "").trim().replace(/\s+/g, " "));
@@ -52,6 +55,12 @@ function maskName(name) {
   if (chars.length === 2) return chars[0] + "O";
   const last = chars.length - 1;
   return chars.map((c, i) => (i === 0 || i === last || c === " " ? c : "O")).join("");
+}
+
+// 화면에 보여줄 이름: 기본은 가림, RESULTS_SHOW_FULL_NAMES === true 이면 실명
+function displayName(name) {
+  if (window.RESULTS_SHOW_FULL_NAMES === true) return String(name ?? "").trim();
+  return maskName(name);
 }
 
 function competitionDisplayName(name) {
@@ -151,7 +160,7 @@ function fillOverlay(row) {
   overlayFields.bib.hidden = row.bib_number == null;
   overlayFields.bib.setAttribute("aria-label", row.bib_number != null ? `배번 ${row.bib_number}` : "");
   overlayFields.school.textContent = row.school || "";
-  overlayFields.name.textContent = row.name || "";
+  overlayFields.name.textContent = displayName(row.name);
   overlayFields.time.textContent = row.record_time || "기록 입력 전";
   overlayFields.time.classList.toggle("pending", !row.record_time);
   if (overlayStatus && overlayList.length > 1) {
@@ -339,7 +348,7 @@ if (container && filterRow) {
               <tr>
                 <td>${r.bib_number != null ? `<button type="button" class="record-link bib-link" data-id="${r.application_id}">${r.bib_number}</button>` : ""}</td>
                 <td>${escapeHtml(r.school)}</td>
-                <td><button type="button" class="record-link" data-id="${r.application_id}">${escapeHtml(maskName(r.name)) || "(이름 없음)"}</button></td>
+                <td><button type="button" class="record-link" data-id="${r.application_id}">${escapeHtml(displayName(r.name)) || "(이름 없음)"}</button></td>
                 <td class="record-cell${r.record_time ? "" : " empty"}">${r.record_time ? escapeHtml(r.record_time) : "-"}</td>
                 <td style="color:var(--ink-soft);">${escapeHtml(r.note)}</td>
               </tr>`
@@ -397,13 +406,17 @@ if (container && filterRow) {
     });
   }
 
-  async function loadResults() {
+  // keepSport: 다시 불러올 때 보고 있던 종목을 유지 (results:reload)
+  async function loadResults({ keepSport = false } = {}) {
     const token = ++loadToken;
-    rows = [];
-    sports = [];
-    activeSport = "";
-    renderFilters();
-    container.innerHTML = '<p class="empty-note">불러오는 중…</p>';
+    const prevSport = keepSport ? activeSport : "";
+    if (!keepSport) {
+      rows = [];
+      sports = [];
+      activeSport = "";
+      renderFilters();
+      container.innerHTML = '<p class="empty-note">불러오는 중…</p>';
+    }
 
     const { data, error } = await supabase.rpc("get_public_results", { comp: activeCompetition });
     if (token !== loadToken) return; // 그 사이 다른 대회를 선택한 경우 무시
@@ -416,11 +429,13 @@ if (container && filterRow) {
 
     rows = (data || []).map((r) => ({ ...r, sport: r.sport || "기타" })).sort(byBib);
     sports = Array.from(new Set(rows.map((r) => r.sport))).sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
-    activeSport = sports[0] || "";
+    activeSport = sports.includes(prevSport) ? prevSport : sports[0] || "";
 
     renderFilters();
     renderResults();
   }
+
+  window.addEventListener("results:reload", () => loadResults({ keepSport: true }));
 
   loadResults();
 }
