@@ -536,6 +536,20 @@ section.block {
   border-bottom: 1px solid var(--line);
 }
 
+/* 경기기록원: 기록·비고 입력값은 진한 파란색 굵게, 안내 문구는 연한 회색 유지 */
+#recTable .rec-rank-input,
+#recTable .rec-note-input {
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+#recTable .rec-rank-input::placeholder,
+#recTable .rec-note-input::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+  opacity: 1;
+}
+
 .rank {
   font-family: var(--font-mono);
   font-weight: 700;
