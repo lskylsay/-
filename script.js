@@ -44,6 +44,16 @@ const COMPETITION_DISPLAY_NAMES = {
   // 예) "충북교육감기 육상대회": "2026. 충북교육감기 육상대회",
 };
 
+// 표에 보이는 이름은 개인정보 보호를 위해 첫·마지막 글자만 남기고 가운데를 O로 가림
+// (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남OO수). 이름 중간의 띄어쓰기는 그대로 둠
+function maskName(name) {
+  const chars = Array.from(String(name ?? "").trim().replace(/\s+/g, " "));
+  if (chars.length <= 1) return chars.join("");
+  if (chars.length === 2) return chars[0] + "O";
+  const last = chars.length - 1;
+  return chars.map((c, i) => (i === 0 || i === last || c === " " ? c : "O")).join("");
+}
+
 function competitionDisplayName(name) {
   return COMPETITION_DISPLAY_NAMES[name] || name || "";
 }
@@ -329,7 +339,7 @@ if (container && filterRow) {
               <tr>
                 <td>${r.bib_number != null ? `<button type="button" class="record-link bib-link" data-id="${r.application_id}">${r.bib_number}</button>` : ""}</td>
                 <td>${escapeHtml(r.school)}</td>
-                <td><button type="button" class="record-link" data-id="${r.application_id}">${escapeHtml(r.name) || "(이름 없음)"}</button></td>
+                <td><button type="button" class="record-link" data-id="${r.application_id}">${escapeHtml(maskName(r.name)) || "(이름 없음)"}</button></td>
                 <td class="record-cell${r.record_time ? "" : " empty"}">${r.record_time ? escapeHtml(r.record_time) : "-"}</td>
                 <td style="color:var(--ink-soft);">${escapeHtml(r.note)}</td>
               </tr>`
