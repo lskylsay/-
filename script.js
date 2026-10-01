@@ -29,6 +29,13 @@ if (container && filterRow) {
     return "";
   }
 
+  function timeToSeconds(t) {
+    if (!t) return null;
+    const parts = String(t).split(":").map(Number);
+    if (parts.some((n) => isNaN(n))) return null;
+    return parts.reduceRight((acc, v, i, arr) => acc + v * Math.pow(60, arr.length - 1 - i), 0);
+  }
+
   function groupResults(rows) {
     // competition + division 조합별로 그룹핑
     const map = new Map();
@@ -42,7 +49,7 @@ if (container && filterRow) {
           entries: [],
         });
       }
-      map.get(key).entries.push({ rank: r.rank, name: r.name, note: r.note });
+      map.get(key).entries.push({ rank: r.rank, recordTime: r.record_time, name: r.name, note: r.note });
     });
     return Array.from(map.values());
   }
@@ -90,20 +97,31 @@ if (container && filterRow) {
         empty.textContent = "결과 발표 예정입니다.";
         section.appendChild(empty);
       } else {
-        const sortedEntries = [...group.entries].sort((a, b) => (a.rank || 999) - (b.rank || 999));
+        const sortedEntries = [...group.entries].sort((a, b) => {
+          if (a.rank != null && b.rank != null) return a.rank - b.rank;
+          if (a.rank != null) return -1;
+          if (b.rank != null) return 1;
+          const ta = timeToSeconds(a.recordTime);
+          const tb = timeToSeconds(b.recordTime);
+          if (ta == null && tb == null) return 0;
+          if (ta == null) return 1;
+          if (tb == null) return -1;
+          return ta - tb;
+        });
         const table = document.createElement("table");
         table.className = "result-table";
         table.innerHTML = `
           <thead>
-            <tr><th style="width:60px;">순위</th><th>이름 / 팀</th><th>비고</th></tr>
+            <tr><th style="width:60px;">순위</th><th>이름 / 팀</th><th style="width:100px;">기록</th><th>비고</th></tr>
           </thead>
           <tbody>
             ${sortedEntries
               .map(
-                (e) => `
+                (e, i) => `
               <tr>
-                <td class="rank ${rankClass(e.rank)}">${e.rank ?? ""}</td>
+                <td class="rank ${rankClass(e.rank ?? (e.recordTime ? i + 1 : null))}">${e.rank ?? (e.recordTime ? i + 1 : "")}</td>
                 <td>${e.name}</td>
+                <td style="font-family:var(--font-mono);">${e.recordTime || ""}</td>
                 <td style="color:var(--ink-soft);">${e.note || ""}</td>
               </tr>`
               )
