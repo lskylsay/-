@@ -620,7 +620,23 @@ section.block {
 }
 
 /* 결과 페이지: 기념촬영용 전체화면 기록 카드 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 오버레이가 열린 동안 뒤 화면 스크롤 잠금 (top 값은 script.js에서 지정) */
 body.overlay-open {
+  position: fixed;
+  left: 0;
+  right: 0;
   overflow: hidden;
 }
 
@@ -633,6 +649,13 @@ body.overlay-open {
   justify-content: center;
   padding: 12px;
   background: rgba(16, 24, 44, 0.82);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  overscroll-behavior: contain;
+}
+
+.record-overlay.is-open {
+  opacity: 1;
 }
 
 .record-overlay[hidden] {
@@ -641,7 +664,7 @@ body.overlay-open {
 
 .record-card {
   position: relative;
-  width: min(900px, 100%);
+  width: min(960px, 100%);
   max-height: 100%;
   overflow-y: auto;
   display: flex;
@@ -654,6 +677,12 @@ body.overlay-open {
   border-radius: 12px;
   border-top: 10px solid var(--clay);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  transform: translateY(14px) scale(0.98);
+  transition: transform 0.22s ease;
+}
+
+.record-overlay.is-open .record-card {
+  transform: none;
 }
 
 :where(.record-card) p {
@@ -661,57 +690,110 @@ body.overlay-open {
   max-width: 100%;
 }
 
-.record-close {
+.record-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.record-body.slide-next { animation: record-slide-next 0.25s ease; }
+.record-body.slide-prev { animation: record-slide-prev 0.25s ease; }
+
+@keyframes record-slide-next {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes record-slide-prev {
+  from { opacity: 0; transform: translateX(-28px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 우측 상단 버튼: [전체화면] [닫기] */
+.record-toolbar {
   position: absolute;
   top: 10px;
   right: 10px;
+  display: flex;
+  gap: 8px;
+  z-index: 1;
+}
+
+.record-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 44px;
   height: 44px;
+  padding: 0;
   border: none;
   border-radius: 50%;
   background: #EDEDE8;
   color: var(--ink);
-  font-size: 1.2rem;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
 
-.record-close:hover { background: var(--line); }
+.record-tool[hidden] { display: none; }
+.record-tool:hover { background: var(--line); }
+
+.record-fullscreen .icon-exit,
+.record-fullscreen.is-active .icon-enter { display: none; }
+.record-fullscreen.is-active .icon-exit { display: block; }
 
 .record-competition {
-  font-size: clamp(1rem, min(4vw, 4.2vh), 1.7rem);
+  font-size: clamp(1rem, min(3.8vw, 4vh), 1.75rem);
   font-weight: 900;
+  line-height: 1.35;
   color: var(--navy);
-  padding: 0 40px;
+  /* 두 줄로 넘어가도 단어가 끊기지 않고 줄 길이가 고르게 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  padding: 0 104px; /* 우측 상단 버튼과 겹치지 않도록 좌우 동일 여백 */
 }
 
 .record-sport {
-  margin-top: 4px;
+  margin-top: min(0.8vh, 6px);
   font-size: clamp(0.85rem, min(3vw, 3vh), 1.2rem);
   font-weight: 500;
   color: var(--ink-soft);
 }
 
-.record-bib {
-  margin: min(2.5vh, 18px) 0 min(1.5vh, 12px);
-  padding: 0.04em 0.35em;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: min(24vw, 20vh, 170px);
-  line-height: 1.1;
-  color: var(--navy);
-  border: max(3px, 0.04em) solid var(--navy);
-  border-radius: 0.08em;
-  max-width: 100%;
+.record-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em 0.6em;
+  margin-top: min(3vh, 24px);
+  font-size: clamp(1rem, min(4.6vw, 4.2vh), 1.9rem);
 }
 
+.record-bib {
+  display: inline-block;
+  padding: 0.08em 0.75em;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1em; /* 학교명과 비슷한 크기 */
+  line-height: 1.3;
+  color: var(--navy);
+  border: 2px solid var(--navy);
+  border-radius: 999px;
+}
+
+.record-bib[hidden] { display: none; }
+
 .record-school {
-  font-size: clamp(1rem, min(5vw, 4.6vh), 2rem);
   font-weight: 500;
   color: var(--ink-soft);
+  word-break: keep-all;
 }
 
 .record-name {
-  font-size: min(13vw, 10vh, 88px);
+  margin-top: min(1vh, 8px);
+  font-size: clamp(2.2rem, min(15vw, 13vh), 7.5rem);
   font-weight: 900;
   line-height: 1.15;
   color: var(--ink);
@@ -729,51 +811,117 @@ body.overlay-open {
 .record-time {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: min(15vw, 13vh, 120px);
+  font-size: clamp(2.4rem, min(17vw, 15vh), 9rem);
   line-height: 1.1;
   color: var(--clay);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .record-time.pending {
   font-family: var(--font-body);
-  font-size: min(8vw, 7vh, 56px);
+  font-size: clamp(1.5rem, min(8vw, 7vh), 3.5rem);
   color: #9ca3af;
 }
 
-.record-brand {
-  margin-top: min(3vh, 24px);
-  font-size: 0.75rem;
-  color: #9ca3af;
-  letter-spacing: 0.05em;
+/* 전체화면: 카드가 화면 전체를 채움 */
+.record-overlay:fullscreen {
+  padding: 0;
+  background: var(--paper);
+}
+.record-overlay:-webkit-full-screen {
+  padding: 0;
+  background: var(--paper);
+}
+.record-overlay:fullscreen .record-card {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.record-overlay:-webkit-full-screen .record-card {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
-/* 휴대폰 가로 화면: 배번은 왼쪽, 이름·기록은 오른쪽에 배치해 세로 공간 확보 */
+/* 휴대폰 세로 화면: 대회명은 버튼 아래 줄로 내려서 넓게 */
+@media (max-width: 600px) {
+  .record-competition {
+    padding: 0;
+    margin-top: 40px;
+  }
+}
+
+/* 휴대폰 가로 화면: 이름은 왼쪽, 기록은 오른쪽에 배치해 세로 공간 확보 */
 @media (orientation: landscape) and (max-height: 560px) {
   .record-card {
+    padding: 14px 20px 16px;
+  }
+  .record-body {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "comp comp"
       "sport sport"
-      "bib school"
-      "bib name"
-      "bib label"
-      "bib time"
-      "brand brand";
-    column-gap: 5vw;
+      "meta label"
+      "name time";
+    column-gap: 4vw;
     align-items: center;
-    padding: 20px 56px 16px;
+    justify-items: center;
   }
-  .record-competition { grid-area: comp; }
-  .record-sport { grid-area: sport; }
-  .record-bib { grid-area: bib; font-size: min(18vw, 30vh); margin: 2vh 0 0; }
-  .record-school { grid-area: school; margin-top: 2vh; }
-  .record-name { grid-area: name; font-size: min(8vw, 14vh); }
-  .record-time-label { grid-area: label; margin-top: 1vh; }
-  .record-time { grid-area: time; font-size: min(9vw, 17vh); }
-  .record-time.pending { font-size: min(5vw, 9vh); }
-  .record-brand { grid-area: brand; margin-top: 1.5vh; }
+  .record-competition {
+    grid-area: comp;
+    font-size: clamp(0.9rem, min(2.8vw, 6vh), 1.4rem);
+    padding: 0 100px;
+    margin-top: 0;
+  }
+  .record-sport { grid-area: sport; font-size: clamp(0.8rem, 4.5vh, 1rem); }
+  .record-meta { grid-area: meta; margin-top: 3vh; font-size: clamp(0.9rem, min(3vw, 6.5vh), 1.4rem); }
+  .record-name { grid-area: name; font-size: clamp(1.6rem, min(8.5vw, 19vh), 6rem); margin-top: 0; }
+  .record-time-label { grid-area: label; margin-top: 3vh; align-self: end; }
+  .record-time { grid-area: time; font-size: clamp(1.8rem, min(9.5vw, 21vh), 7rem); }
+  .record-time.pending { font-size: clamp(1.2rem, min(5vw, 10vh), 3rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-body.slide-next,
+  .record-body.slide-prev { animation: none; }
+  .record-card { transform: none; }
+}
+
+/* 인쇄: 기록 카드가 열려 있으면 카드만 한 장에 깔끔하게 */
+@media print {
+  body.overlay-open {
+    position: static;
+  }
+  body.overlay-open > *:not(.record-overlay) {
+    display: none !important;
+  }
+  .record-overlay {
+    position: static;
+    padding: 0;
+    background: none;
+    opacity: 1;
+  }
+  .record-card {
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    box-shadow: none;
+    border: 1px solid var(--line);
+    border-top: 10px solid var(--clay);
+    transform: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .record-toolbar { display: none; }
+  .record-competition { padding: 0; margin-top: 0; }
+  .record-name { font-size: 64pt; }
+  .record-time { font-size: 72pt; }
 }
 
 .empty-note {

@@ -37,7 +37,23 @@ function byBib(a, b) {
 
 /* ============ 기념촬영용 전체화면 기록 카드 ============ */
 
+// 기록 카드 맨 위에 보여줄 대회 표기 이름 (DB 대회명 → 화면 표기)
+// 여기에 없는 대회는 DB 대회명을 그대로 보여줍니다.
+const COMPETITION_DISPLAY_NAMES = {
+  "트랙마라톤 축제": "2026. 제천 학교스포츠클럽 트랙마라톤 축제",
+  // 예) "충북교육감기 육상대회": "2026. 충북교육감기 육상대회",
+};
+
+function competitionDisplayName(name) {
+  return COMPETITION_DISPLAY_NAMES[name] || name || "";
+}
+
 const overlay = document.getElementById("recordOverlay");
+const overlayCard = document.getElementById("recordCard");
+const overlayBody = document.getElementById("recordOverlayBody");
+const closeBtn = document.getElementById("recordOverlayClose");
+const fullscreenBtn = document.getElementById("recordOverlayFullscreen");
+const overlayStatus = document.getElementById("recordOverlayStatus");
 const overlayFields = {
   competition: document.getElementById("recordOverlayCompetition"),
   sport: document.getElementById("recordOverlaySport"),
@@ -46,40 +62,211 @@ const overlayFields = {
   name: document.getElementById("recordOverlayName"),
   time: document.getElementById("recordOverlayTime"),
 };
+const TRANSITION_MS = 220;
+let overlayList = []; // 좌우 이동 대상 (현재 화면에 보이는 참가자, 표시 순서대로)
+let overlayIndex = -1;
 let lastFocused = null;
+let closeTimer = null;
+let savedScrollY = 0;
+let fullscreenExitedAt = 0;
 
-function openOverlay(row) {
-  overlayFields.competition.textContent = row.competition || "";
+// 전체화면 API (iPhone Safari 등 미지원 브라우저에서는 버튼 숨김)
+const fullscreenSupported = !!(
+  document.fullscreenEnabled ||
+  document.webkitFullscreenEnabled
+);
+
+function fullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function enterFullscreen() {
+  const req = overlay.requestFullscreen || overlay.webkitRequestFullscreen;
+  if (!req) return;
+  try {
+    const result = req.call(overlay);
+    if (result && result.catch) result.catch(() => {});
+  } catch (_) {
+    /* 전체화면 거부 시 무시 */
+  }
+}
+
+function exitFullscreen() {
+  if (!fullscreenElement()) return;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!exit) return;
+  try {
+    const result = exit.call(document);
+    if (result && result.catch) result.catch(() => {});
+  } catch (_) {
+    /* 무시 */
+  }
+}
+
+function updateFullscreenButton() {
+  if (!fullscreenBtn) return;
+  const active = fullscreenElement() === overlay;
+  const label = active ? "전체화면 종료" : "전체화면";
+  fullscreenBtn.classList.toggle("is-active", active);
+  fullscreenBtn.setAttribute("aria-label", label);
+  fullscreenBtn.title = label;
+  fullscreenBtn.setAttribute("aria-pressed", String(active));
+}
+
+// 뒤 화면 스크롤 잠금 (iOS Safari에서도 동작하도록 body를 고정)
+function lockScroll() {
+  savedScrollY = window.scrollY;
+  const scrollbar = window.innerWidth - document.documentElement.clientWidth;
+  document.body.style.top = `-${savedScrollY}px`;
+  if (scrollbar > 0) document.body.style.paddingRight = `${scrollbar}px`;
+  document.body.classList.add("overlay-open");
+}
+
+function unlockScroll() {
+  document.body.classList.remove("overlay-open");
+  document.body.style.top = "";
+  document.body.style.paddingRight = "";
+  // 부드러운 스크롤 설정이 있어도 원래 위치로 즉시 복귀
+  const html = document.documentElement;
+  const prev = html.style.scrollBehavior;
+  html.style.scrollBehavior = "auto";
+  window.scrollTo(0, savedScrollY);
+  html.style.scrollBehavior = prev;
+}
+
+function fillOverlay(row) {
+  overlayFields.competition.textContent = competitionDisplayName(row.competition);
   overlayFields.sport.textContent = row.sport || "";
   overlayFields.bib.textContent = row.bib_number ?? "";
   overlayFields.bib.hidden = row.bib_number == null;
+  overlayFields.bib.setAttribute("aria-label", row.bib_number != null ? `배번 ${row.bib_number}` : "");
   overlayFields.school.textContent = row.school || "";
   overlayFields.name.textContent = row.name || "";
   overlayFields.time.textContent = row.record_time || "기록 입력 전";
   overlayFields.time.classList.toggle("pending", !row.record_time);
+  if (overlayStatus && overlayList.length > 1) {
+    overlayStatus.textContent = `${overlayList.length}명 중 ${overlayIndex + 1}번째`;
+  }
+}
 
-  lastFocused = document.activeElement;
-  overlay.hidden = false;
-  document.body.classList.add("overlay-open");
-  document.getElementById("recordOverlayClose").focus();
+function showAt(index, direction) {
+  if (index < 0 || index >= overlayList.length) return;
+  overlayIndex = index;
+  fillOverlay(overlayList[index]);
+  // 이전/다음 이동 시 살짝 미끄러지는 효과
+  overlayBody.classList.remove("slide-next", "slide-prev");
+  if (direction) {
+    void overlayBody.offsetWidth; // 애니메이션 재시작
+    overlayBody.classList.add(direction > 0 ? "slide-next" : "slide-prev");
+  }
+}
+
+function step(delta) {
+  if (overlay.hidden || overlayList.length < 2) return;
+  showAt(overlayIndex + delta, delta);
+}
+
+function openOverlay(row, list) {
+  overlayList = list && list.length ? list : [row];
+  overlayIndex = Math.max(0, overlayList.indexOf(row));
+  if (overlayStatus) overlayStatus.textContent = "";
+  showAt(overlayIndex, 0);
+
+  clearTimeout(closeTimer);
+  if (overlay.hidden) {
+    lastFocused = document.activeElement;
+    lockScroll();
+    overlay.hidden = false;
+    void overlay.offsetWidth; // 표시 후 다음 프레임에 전환 효과 시작
+  }
+  overlay.classList.add("is-open");
+  updateFullscreenButton();
+  closeBtn.focus();
 }
 
 function closeOverlay() {
-  if (overlay.hidden) return;
-  overlay.hidden = true;
-  document.body.classList.remove("overlay-open");
-  if (lastFocused) lastFocused.focus();
+  if (overlay.hidden || !overlay.classList.contains("is-open")) return;
+  exitFullscreen();
+  overlay.classList.remove("is-open");
+  clearTimeout(closeTimer);
+  closeTimer = setTimeout(() => {
+    overlay.hidden = true;
+    unlockScroll();
+    if (lastFocused && document.contains(lastFocused)) lastFocused.focus();
+  }, TRANSITION_MS);
 }
 
 if (overlay) {
-  document.getElementById("recordOverlayClose").addEventListener("click", closeOverlay);
+  closeBtn.addEventListener("click", closeOverlay);
+
+  if (fullscreenBtn && fullscreenSupported) {
+    fullscreenBtn.hidden = false;
+    fullscreenBtn.addEventListener("click", () => {
+      if (fullscreenElement()) exitFullscreen();
+      else enterFullscreen();
+    });
+  }
+
+  // 전체화면이 풀려도(ESC 포함) 오버레이는 그대로 유지
+  const onFullscreenChange = () => {
+    if (!fullscreenElement()) fullscreenExitedAt = Date.now();
+    updateFullscreenButton();
+  };
+  document.addEventListener("fullscreenchange", onFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+
   // 카드 바깥(어두운 배경)을 누르면 닫힘
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) closeOverlay();
   });
+
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeOverlay();
+    if (overlay.hidden) return;
+    if (e.key === "Escape") {
+      // 전체화면 상태의 ESC는 브라우저가 전체화면만 해제 → 오버레이는 닫지 않음
+      if (fullscreenElement() || Date.now() - fullscreenExitedAt < 500) return;
+      e.preventDefault();
+      closeOverlay();
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      step(-1);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      step(1);
+    } else if (e.key === "Tab") {
+      // 포커스가 카드 밖으로 나가지 않도록
+      const focusables = Array.from(overlayCard.querySelectorAll("button")).filter((b) => !b.hidden);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (!overlayCard.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
   });
+
+  // 휴대폰: 좌우로 밀어서 이전·다음 참가자
+  let touchX = null;
+  let touchY = null;
+  overlayCard.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) return (touchX = null);
+    touchX = e.touches[0].clientX;
+    touchY = e.touches[0].clientY;
+  }, { passive: true });
+  overlayCard.addEventListener("touchend", (e) => {
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    const dy = e.changedTouches[0].clientY - touchY;
+    touchX = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
+  }, { passive: true });
 }
 
 /* ============ 대회/종목 선택 및 표 ============ */
@@ -92,6 +279,7 @@ if (container && filterRow) {
   let sports = [];
   let query = "";
   let loadToken = 0;
+  let visibleRows = []; // 현재 화면에 표시된 참가자 (기록 카드 좌우 이동용)
 
   function renderButtons(target, items, active, onSelect) {
     target.innerHTML = "";
@@ -153,6 +341,7 @@ if (container && filterRow) {
   }
 
   function renderResults() {
+    visibleRows = [];
     if (rows.length === 0) {
       container.innerHTML = '<p class="empty-note">아직 이 대회의 참가자 명단이 없습니다.</p>';
       return;
@@ -169,6 +358,7 @@ if (container && filterRow) {
       return;
     }
 
+    visibleRows = groups.flatMap((g) => g.items);
     container.innerHTML = groups
       .map((g) => {
         const recorded = g.items.filter((r) => r.record_time).length;
@@ -185,8 +375,8 @@ if (container && filterRow) {
   container.addEventListener("click", (e) => {
     const link = e.target.closest(".record-link");
     if (!link) return;
-    const row = rows.find((r) => String(r.application_id) === link.dataset.id);
-    if (row) openOverlay(row);
+    const row = visibleRows.find((r) => String(r.application_id) === link.dataset.id);
+    if (row) openOverlay(row, visibleRows);
   });
 
   if (searchInput) {
