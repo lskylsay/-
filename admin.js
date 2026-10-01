@@ -23,6 +23,7 @@ const countLabel = document.getElementById("countLabel");
 
 let allRows = [];
 let activeCompetition = "전체";
+let sortMode = "date"; // "date" | "bib"
 
 function showView(view) {
   loginView.style.display = view === "login" ? "" : "none";
@@ -46,6 +47,25 @@ logoutBtnDenied.addEventListener("click", doLogout);
 
 refreshBtn.addEventListener("click", loadRoster);
 
+function renderSortRow() {
+  const sortRow = document.getElementById("sortRow");
+  sortRow.innerHTML = "";
+  [
+    { key: "date", label: "접수순" },
+    { key: "bib", label: "배번순" },
+  ].forEach(({ key, label }) => {
+    const btn = document.createElement("button");
+    btn.className = "filter-btn" + (key === sortMode ? " active" : "");
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      sortMode = key;
+      renderSortRow();
+      renderTable();
+    });
+    sortRow.appendChild(btn);
+  });
+}
+
 function renderFilters() {
   const competitions = ["전체", ...Array.from(new Set(allRows.map((r) => r.competition).filter(Boolean)))];
   filterRow.innerHTML = "";
@@ -63,8 +83,20 @@ function renderFilters() {
 }
 
 function renderTable() {
-  const rows =
+  let rows =
     activeCompetition === "전체" ? allRows : allRows.filter((r) => r.competition === activeCompetition);
+
+  rows = [...rows];
+  if (sortMode === "bib") {
+    rows.sort((a, b) => {
+      const ba = a.raw.bib_number;
+      const bb = b.raw.bib_number;
+      if (ba == null && bb == null) return 0;
+      if (ba == null) return 1;
+      if (bb == null) return -1;
+      return ba - bb;
+    });
+  }
 
   countLabel.textContent = `총 ${rows.length}건 (개인 ${rows.filter((r) => r.type === "individual").length}건 · 일괄 ${rows.filter((r) => r.type === "bulk").length}건)`;
 
@@ -72,6 +104,7 @@ function renderTable() {
     .map((r, idx) => {
       const date = new Date(r.created_at).toLocaleString("ko-KR");
       const typeLabel = r.type === "bulk" ? "일괄" : "개인";
+      const bibNumber = r.type === "individual" ? r.raw.bib_number : null;
 
       let detailCell;
       if (r.type === "bulk") {
@@ -86,12 +119,14 @@ function renderTable() {
           <td><span class="type-badge type-badge-${r.type}">${typeLabel}</span></td>
           <td>${r.competition || ""}</td>
           <td>${r.sport || ""}</td>
+          <td style="font-family:var(--font-mono);">${bibNumber ?? ""}</td>
           <td>${r.school || ""}</td>
           <td>${r.contactName || ""}</td>
           <td>${r.contact || ""}</td>
           <td>${detailCell}</td>
           <td style="font-family:var(--font-mono); font-size:0.82rem; color:var(--ink-soft);">${r.ip_address || ""}</td>
           <td>${r.privacy_consent ? '<span class="type-badge type-badge-bulk">동의</span>' : '<span class="type-badge" style="background:#F3E3E1; color:var(--clay-dark);">미동의</span>'}</td>
+          <td><button type="button" class="row-remove-btn roster-delete-btn" data-idx="${idx}" title="삭제">×</button></td>
         </tr>`;
     })
     .join("");
@@ -115,6 +150,26 @@ function renderTable() {
         return;
       }
       window.open(data.signedUrl, "_blank");
+    });
+  });
+
+  tableBody.querySelectorAll(".roster-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = rows[Number(btn.dataset.idx)];
+      const label = row.contactName || row.school || "이 신청";
+      if (!confirm(`"${label}" 건을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+
+      const tableName = row.type === "bulk" ? "bulk_applications" : "applications";
+      if (row.type === "bulk" && row.raw.file_path) {
+        await supabase.storage.from("bulk-uploads").remove([row.raw.file_path]);
+      }
+      const { error } = await supabase.from(tableName).delete().eq("id", row.raw.id);
+
+      if (error) {
+        alert("삭제 실패: " + error.message);
+        return;
+      }
+      loadRoster();
     });
   });
 }
@@ -165,6 +220,7 @@ async function loadRoster() {
   );
 
   renderFilters();
+  renderSortRow();
   renderTable();
 }
 
@@ -227,11 +283,12 @@ function parseRosterSheet(sheet) {
     const startLoc = row["출발위치"] || "";
 
     const gradeDisplay = [grade && `${grade}학년`, classNo && `${classNo}반`].filter(Boolean).join(" ");
-    const memberDetail = [gradeDisplay, gender, type, bib && `배번 ${bib}${bibColor ? "(" + bibColor + ")" : ""}`, startLoc]
+    const memberDetail = [gradeDisplay, gender, type, bibColor && `배번색 ${bibColor}`, startLoc]
       .filter(Boolean)
       .join(" · ");
+    const bibNumber = bib && !isNaN(Number(bib)) ? Number(bib) : null;
 
-    entries.push({ school, gradeDisplay, name, memberDetail });
+    entries.push({ school, gradeDisplay, name, memberDetail, bibNumber });
   });
 
   return { entries, skipped, headerFound: true };
@@ -280,6 +337,7 @@ rosterUploadBtn.addEventListener("click", async () => {
           contact: null,
           members: e.memberDetail || null,
           note: null,
+          bib_number: e.bibNumber,
         });
       });
 
