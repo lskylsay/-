@@ -2,6 +2,7 @@
 // - PIN(6680)은 간단한 입장 장치일 뿐, 실제 보안은 Supabase 쪽 권한 설계로 처리됩니다.
 // - 참가자 명단은 개인정보(연락처 등)를 제외하고 get_recorder_roster() 함수를 통해서만 읽어옵니다.
 // - 입력한 기록은 results 테이블에 applications_id 기준으로 upsert 됩니다.
+// - 기록 칸을 비우고 저장하면 이미 저장된 results 행을 삭제합니다.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -231,16 +232,62 @@ function parseTimeInput(raw) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
+// 기록 칸을 비우고 저장한 행의 results 를 applications_id 기준으로 삭제합니다.
+// RLS 로 삭제가 막히면 Supabase 는 오류 없이 0건만 삭제하므로, 삭제된 행을 돌려받아
+// 실제로 지워진 applications_id 목록을 반환합니다.
+async function deleteResults(appIds) {
+  const { data, error } = await supabase
+    .from("results")
+    .delete()
+    .in("applications_id", appIds)
+    .select("applications_id");
+
+  if (error) return { deletedIds: [], error };
+  return { deletedIds: (data || []).map((r) => r.applications_id), error: null };
+}
+
+const DELETE_BLOCKED_MSG = "삭제 권한이 없어 기록을 지우지 못했습니다. (Supabase results 테이블 삭제 정책 확인 필요)";
+
+function clearRowInputs(row, rankInput, noteInput) {
+  row.rank = "";
+  row.note = "";
+  row.resultId = null;
+  if (rankInput) rankInput.value = "";
+  if (noteInput) noteInput.value = "";
+}
+
 async function saveRow(idx) {
   const row = currentRows[idx];
   const rankInput = recTableBody.querySelector(`.rec-rank-input[data-idx="${idx}"]`);
   const noteInput = recTableBody.querySelector(`.rec-note-input[data-idx="${idx}"]`);
-  const rawInput = rankInput.value;
+  const rawInput = rankInput.value.trim();
   const note = noteInput.value;
 
   if (!rawInput) {
-    recStatus.textContent = `${row.name}: 기록을 입력해 주세요.`;
-    recStatus.className = "form-status error";
+    // 저장된 기록이 없으면 입력칸만 비우고 조용히 넘어감
+    if (row.resultId == null) {
+      clearRowInputs(row, rankInput, noteInput);
+      recStatus.textContent = "";
+      recStatus.className = "form-status";
+      return;
+    }
+
+    const { deletedIds, error } = await deleteResults([row.applications_id]);
+
+    if (error) {
+      recStatus.textContent = `${row.name} 기록 삭제 실패: ` + error.message;
+      recStatus.className = "form-status error";
+      return;
+    }
+    if (deletedIds.length === 0) {
+      recStatus.textContent = `${row.name}: ` + DELETE_BLOCKED_MSG;
+      recStatus.className = "form-status error";
+      return;
+    }
+
+    clearRowInputs(row, rankInput, noteInput);
+    recStatus.textContent = `${row.name} 기록 삭제 완료.`;
+    recStatus.className = "form-status success";
     return;
   }
 
@@ -279,26 +326,37 @@ async function saveRow(idx) {
 }
 
 recSaveAllBtn.addEventListener("click", async () => {
-  const rowsToSave = currentRows
-    .map((row, idx) => ({ row, idx }))
-    .filter(({ idx }) => {
-      const rankInput = recTableBody.querySelector(`.rec-rank-input[data-idx="${idx}"]`);
-      return rankInput && rankInput.value;
-    });
+  const rowsToSave = [];
+  const rowsToDelete = [];
 
-  if (rowsToSave.length === 0) {
-    recStatus.textContent = "입력된 기록이 없습니다.";
-    recStatus.className = "form-status error";
+  currentRows.forEach((row, idx) => {
+    const rankInput = recTableBody.querySelector(`.rec-rank-input[data-idx="${idx}"]`);
+    const noteInput = recTableBody.querySelector(`.rec-note-input[data-idx="${idx}"]`);
+    if (!rankInput) return; // 배번 검색으로 화면에 없는 행은 건드리지 않음
+
+    if (rankInput.value.trim()) {
+      rowsToSave.push({ row, rankInput, noteInput });
+    } else if (row.resultId != null) {
+      rowsToDelete.push({ row, rankInput, noteInput });
+    } else {
+      clearRowInputs(row, rankInput, noteInput);
+    }
+  });
+
+  if (rowsToSave.length === 0 && rowsToDelete.length === 0) {
+    recStatus.textContent = "저장하거나 삭제할 기록이 없습니다.";
+    recStatus.className = "form-status";
     return;
   }
 
-  recStatus.textContent = `${rowsToSave.length}명 저장 중…`;
+  recStatus.textContent = "저장 중…";
   recStatus.className = "form-status";
 
-  const payload = rowsToSave.map(({ row, idx }) => {
-    const rankInput = recTableBody.querySelector(`.rec-rank-input[data-idx="${idx}"]`);
-    const noteInput = recTableBody.querySelector(`.rec-note-input[data-idx="${idx}"]`);
-    return {
+  const messages = [];
+  const errors = [];
+
+  if (rowsToSave.length > 0) {
+    const payload = rowsToSave.map(({ row, rankInput, noteInput }) => ({
       competition: recCompetition.value,
       division: recSport.value,
       rank: null,
@@ -306,20 +364,30 @@ recSaveAllBtn.addEventListener("click", async () => {
       name: row.name,
       note: noteInput.value || null,
       applications_id: row.applications_id,
-    };
-  });
+    }));
 
-  const { error } = await supabase.from("results").upsert(payload, { onConflict: "applications_id" });
-
-  if (error) {
-    recStatus.textContent = "일괄 저장 실패: " + error.message;
-    recStatus.className = "form-status error";
-    return;
+    const { error } = await supabase.from("results").upsert(payload, { onConflict: "applications_id" });
+    if (error) errors.push("일괄 저장 실패: " + error.message);
+    else messages.push(`${rowsToSave.length}명 저장 완료`);
   }
 
-  recStatus.textContent = `${rowsToSave.length}명 저장 완료.`;
-  recStatus.className = "form-status success";
-  loadRowsForSport();
+  if (rowsToDelete.length > 0) {
+    const { deletedIds, error } = await deleteResults(rowsToDelete.map(({ row }) => row.applications_id));
+    if (error) {
+      errors.push("기록 삭제 실패: " + error.message);
+    } else {
+      const deleted = new Set(deletedIds);
+      const blocked = rowsToDelete.length - deleted.size;
+      if (deleted.size > 0) messages.push(`${deleted.size}명 기록 삭제 완료`);
+      if (blocked > 0) errors.push(`${blocked}명 ` + DELETE_BLOCKED_MSG);
+    }
+  }
+
+  // 명단을 다시 불러오면 상태 문구가 초기화되므로, 다시 불러온 뒤 결과를 표시
+  await loadRowsForSport();
+
+  recStatus.textContent = [...errors, ...messages].join(" / ") + ".";
+  recStatus.className = errors.length > 0 ? "form-status error" : "form-status success";
 });
 
 recCompetition.addEventListener("change", loadRosterForCompetition);
