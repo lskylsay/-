@@ -168,6 +168,97 @@ async function loadRoster() {
   renderTable();
 }
 
+/* ============ 취합된 신청자 명단 엑셀 일괄 등록 ============ */
+
+const rosterUploadFile = document.getElementById("rosterUploadFile");
+const rosterUploadBtn = document.getElementById("rosterUploadBtn");
+const rosterUploadStatus = document.getElementById("rosterUploadStatus");
+initDropzone(
+  document.getElementById("rosterUploadDropzone"),
+  rosterUploadFile,
+  document.getElementById("rosterUploadFileName")
+);
+
+rosterUploadBtn.addEventListener("click", async () => {
+  const file = rosterUploadFile.files[0];
+  if (!file) {
+    rosterUploadStatus.textContent = "업로드할 파일을 선택해 주세요.";
+    rosterUploadStatus.className = "form-status error";
+    return;
+  }
+
+  rosterUploadBtn.disabled = true;
+  rosterUploadStatus.textContent = "읽는 중…";
+  rosterUploadStatus.className = "form-status";
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+    const validCompetitions = ["트랙마라톤 축제", "충북교육감기 육상대회"];
+    const parsed = [];
+    const skipped = [];
+
+    rows.forEach((row) => {
+      const competition = String(row["대회"] || "").trim();
+      const sport = String(row["종목/유형"] || "").trim();
+      const school = String(row["학교명"] || "").trim();
+      const grade = String(row["학년/구분"] || "").trim();
+      const leaderName = String(row["대표자"] || "").trim();
+      const contact = String(row["연락처"] || "").trim();
+
+      if (!competition || !sport || !school || !leaderName || !contact || !validCompetitions.includes(competition)) {
+        skipped.push(row);
+        return;
+      }
+
+      parsed.push({
+        competition,
+        sport,
+        preferred_dates: String(row["희망일(선택)"] || "").trim() || null,
+        class_no: school,
+        grade,
+        leader_name: leaderName,
+        contact,
+        members: String(row["참가자명단(선택)"] || "").trim() || null,
+        note: String(row["비고(선택)"] || "").trim() || null,
+        privacy_consent: true,
+      });
+    });
+
+    if (parsed.length === 0) {
+      rosterUploadStatus.textContent = "유효한 행이 없습니다. 양식의 헤더와 대회명을 확인해 주세요.";
+      rosterUploadStatus.className = "form-status error";
+      rosterUploadBtn.disabled = false;
+      return;
+    }
+
+    const { error } = await supabase.from("applications").insert(parsed);
+
+    rosterUploadBtn.disabled = false;
+
+    if (error) {
+      rosterUploadStatus.textContent = "업로드 실패: " + error.message;
+      rosterUploadStatus.className = "form-status error";
+      return;
+    }
+
+    rosterUploadStatus.textContent =
+      `${parsed.length}건 등록 완료.` + (skipped.length ? ` (형식이 맞지 않아 ${skipped.length}건 건너뜀)` : "");
+    rosterUploadStatus.className = "form-status success";
+    rosterUploadFile.value = "";
+    document.getElementById("rosterUploadFileName").textContent = "";
+    document.getElementById("rosterUploadDropzone").classList.remove("has-file");
+    loadRoster();
+  } catch (err) {
+    rosterUploadBtn.disabled = false;
+    rosterUploadStatus.textContent = "파일을 읽는 중 오류가 발생했습니다: " + err.message;
+    rosterUploadStatus.className = "form-status error";
+  }
+});
+
 async function checkAuthAndRender() {
   const { data: { session } } = await supabase.auth.getSession();
 
