@@ -179,18 +179,75 @@ initDropzone(
   document.getElementById("rosterUploadFileName")
 );
 
+// 시트 이름 → 종목 자동 매핑 (일치하는 이름이 없으면 시트 이름을 그대로 종목으로 사용)
+const SHEET_NAME_TO_SPORT = {
+  "초등": "3km 마라톤 (초등학교 4·5·6학년 및 초등학교 교직원부)",
+  "중등": "5km 마라톤 (중고등학생 및 중고등학교 교직원)",
+};
+
+function resolveSportFromSheetName(sheetName) {
+  const trimmed = sheetName.trim();
+  return SHEET_NAME_TO_SPORT[trimmed] || trimmed;
+}
+
+function parseRosterSheet(sheet) {
+  const rows2D = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  const headerRowIdx = rows2D.findIndex((r) =>
+    r.some((cell) => ["배번", "성명", "소속"].includes(String(cell).trim()))
+  );
+  if (headerRowIdx === -1) return { entries: [], skipped: 0, headerFound: false };
+
+  const headers = rows2D[headerRowIdx].map((h) => String(h).trim());
+  const dataRows2D = rows2D.slice(headerRowIdx + 1);
+
+  const entries = [];
+  let skipped = 0;
+
+  dataRows2D.forEach((r) => {
+    const row = {};
+    headers.forEach((h, i) => {
+      row[h] = r[i] !== undefined ? String(r[i]).trim() : "";
+    });
+
+    const name = row["성명"];
+    if (!name) return;
+
+    const school = row["소속"] || "";
+    if (!school) {
+      skipped++;
+      return;
+    }
+
+    const grade = row["학년"] || "";
+    const classNo = row["반"] || "";
+    const gender = row["성별"] || "";
+    const type = row["참가자 구분"] || row["참가자구분"] || "";
+    const bib = row["배번"] || "";
+    const bibColor = row["배번색"] || "";
+    const startLoc = row["출발위치"] || "";
+
+    const gradeDisplay = [grade && `${grade}학년`, classNo && `${classNo}반`].filter(Boolean).join(" ");
+    const memberDetail = [gradeDisplay, gender, type, bib && `배번 ${bib}${bibColor ? "(" + bibColor + ")" : ""}`, startLoc]
+      .filter(Boolean)
+      .join(" · ");
+
+    entries.push({ school, gradeDisplay, name, memberDetail });
+  });
+
+  return { entries, skipped, headerFound: true };
+}
+
 rosterUploadBtn.addEventListener("click", async () => {
   const file = rosterUploadFile.files[0];
   const competition = document.getElementById("rosterUploadCompetition").value;
-  const sport = document.getElementById("rosterUploadSport").value.trim();
 
   if (!file) {
     rosterUploadStatus.textContent = "업로드할 파일을 선택해 주세요.";
     rosterUploadStatus.className = "form-status error";
     return;
   }
-  if (!competition || !sport) {
-    rosterUploadStatus.textContent = "대회와 종목/유형을 먼저 선택·입력해 주세요.";
+  if (!competition) {
+    rosterUploadStatus.textContent = "대회를 먼저 선택해 주세요.";
     rosterUploadStatus.className = "form-status error";
     return;
   }
@@ -202,70 +259,39 @@ rosterUploadBtn.addEventListener("click", async () => {
   try {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-
-    // 제목 행이 몇 줄 있어도 상관없이, "배번" 또는 "성명"이 들어있는 실제 헤더 행을 찾습니다.
-    const rows2D = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
-    const headerRowIdx = rows2D.findIndex((r) =>
-      r.some((cell) => ["배번", "성명", "소속"].includes(String(cell).trim()))
-    );
-
-    if (headerRowIdx === -1) {
-      rosterUploadStatus.textContent = "표 형식을 인식하지 못했습니다. '배번/소속/성명' 등의 열 제목이 있는지 확인해 주세요.";
-      rosterUploadStatus.className = "form-status error";
-      rosterUploadBtn.disabled = false;
-      return;
-    }
-
-    const headers = rows2D[headerRowIdx].map((h) => String(h).trim());
-    const dataRows2D = rows2D.slice(headerRowIdx + 1);
 
     const parsed = [];
-    let skippedCount = 0;
+    let totalSkipped = 0;
+    const sheetSummaries = [];
 
-    dataRows2D.forEach((r) => {
-      const row = {};
-      headers.forEach((h, i) => {
-        row[h] = r[i] !== undefined ? String(r[i]).trim() : "";
+    workbook.SheetNames.forEach((sheetName) => {
+      const sheet = workbook.Sheets[sheetName];
+      const { entries, skipped, headerFound } = parseRosterSheet(sheet);
+      if (!headerFound) return; // 표 형식이 아닌 시트는 조용히 건너뜀
+
+      const sport = resolveSportFromSheetName(sheetName);
+      entries.forEach((e) => {
+        parsed.push({
+          competition,
+          sport,
+          class_no: e.school,
+          grade: e.gradeDisplay || null,
+          leader_name: e.name,
+          contact: null,
+          members: e.memberDetail || null,
+          note: null,
+          privacy_consent: true,
+        });
       });
 
-      const name = row["성명"];
-      if (!name) return; // 빈 행은 건너뜀
-
-      const school = row["소속"] || "";
-      const grade = row["학년"] || "";
-      const classNo = row["반"] || "";
-      const gender = row["성별"] || "";
-      const type = row["참가자 구분"] || row["참가자구분"] || "";
-      const bib = row["배번"] || "";
-      const bibColor = row["배번색"] || "";
-      const startLoc = row["출발위치"] || "";
-
-      if (!school) {
-        skippedCount++;
-        return;
+      totalSkipped += skipped;
+      if (entries.length > 0 || skipped > 0) {
+        sheetSummaries.push(`${sheetName}(${sport}): ${entries.length}명`);
       }
-
-      const gradeDisplay = [grade && `${grade}학년`, classNo && `${classNo}반`].filter(Boolean).join(" ");
-      const memberDetail = [gradeDisplay, gender, type, bib && `배번 ${bib}${bibColor ? "(" + bibColor + ")" : ""}`, startLoc]
-        .filter(Boolean)
-        .join(" · ");
-
-      parsed.push({
-        competition,
-        sport,
-        class_no: school,
-        grade: gradeDisplay || null,
-        leader_name: name,
-        contact: null,
-        members: memberDetail || null,
-        note: null,
-        privacy_consent: true,
-      });
     });
 
     if (parsed.length === 0) {
-      rosterUploadStatus.textContent = "유효한 행이 없습니다. '소속'과 '성명'이 채워진 행이 있는지 확인해 주세요.";
+      rosterUploadStatus.textContent = "유효한 행이 없습니다. '배번/소속/성명' 등의 열 제목이 있는 시트인지 확인해 주세요.";
       rosterUploadStatus.className = "form-status error";
       rosterUploadBtn.disabled = false;
       return;
@@ -282,7 +308,8 @@ rosterUploadBtn.addEventListener("click", async () => {
     }
 
     rosterUploadStatus.textContent =
-      `${parsed.length}명 등록 완료.` + (skippedCount ? ` (소속 누락 등으로 ${skippedCount}건 건너뜀)` : "");
+      `총 ${parsed.length}명 등록 완료 [${sheetSummaries.join(", ")}]` +
+      (totalSkipped ? ` (소속 누락 등으로 ${totalSkipped}건 건너뜀)` : "");
     rosterUploadStatus.className = "form-status success";
     rosterUploadFile.value = "";
     document.getElementById("rosterUploadFileName").textContent = "";
