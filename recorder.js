@@ -1,7 +1,7 @@
 // 경기기록원 페이지 로직
 // - PIN(6680)은 간단한 입장 장치일 뿐, 실제 보안은 Supabase 쪽 권한 설계로 처리됩니다.
 // - 참가자 명단은 개인정보(연락처 등)를 제외하고 get_recorder_roster() 함수를 통해서만 읽어옵니다.
-// - 입력한 순위는 results 테이블에 applications_id 기준으로 upsert 됩니다.
+// - 입력한 기록은 results 테이블에 applications_id 기준으로 upsert 됩니다.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -172,7 +172,7 @@ function renderRecTable() {
     });
   });
 
-  // 검색어와 정확히 일치하는 배번이 하나면 순위 입력란에 바로 포커스
+  // 검색어와 정확히 일치하는 배번이 하나면 기록 입력란에 바로 포커스
   if (bibFilter && filtered.length >= 1) {
     const exactIdx = currentRows.indexOf(filtered[0]);
     const rankInput = recTableBody.querySelector(`.rec-rank-input[data-idx="${exactIdx}"]`);
@@ -207,7 +207,7 @@ async function saveRow(idx) {
   const note = noteInput.value;
 
   if (!rank) {
-    recStatus.textContent = `${row.name}: 순위를 입력해 주세요.`;
+    recStatus.textContent = `${row.name}: 기록을 입력해 주세요.`;
     recStatus.className = "form-status error";
     return;
   }
@@ -251,7 +251,7 @@ recSaveAllBtn.addEventListener("click", async () => {
     });
 
   if (rowsToSave.length === 0) {
-    recStatus.textContent = "입력된 순위가 없습니다.";
+    recStatus.textContent = "입력된 기록이 없습니다.";
     recStatus.className = "form-status error";
     return;
   }
