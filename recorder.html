@@ -56,10 +56,13 @@
         </div>
       </div>
 
-      <div class="field" style="max-width:280px;">
+      <div class="field" style="max-width:420px;">
         <label for="recBibSearch">배번으로 검색</label>
-        <input type="text" id="recBibSearch" inputmode="numeric" placeholder="배번 입력 후 Enter"
-          style="font-size:1.1rem; padding:10px 12px;">
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="recBibSearch" inputmode="numeric" placeholder="배번 입력"
+            style="flex:1; font-size:1.1rem; padding:10px 12px;">
+          <button type="button" class="btn btn-primary" id="recBibSearchBtn">검색</button>
+        </div>
       </div>
 
       <div style="display:flex; gap:10px; align-items:center; margin:16px 0;">
