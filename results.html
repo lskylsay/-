@@ -28,9 +28,15 @@
   <div class="wrap">
     <span class="bib">대회 결과</span>
     <h2 style="margin-top:14px;">종목별 대회 결과</h2>
-    <p class="sub">경기가 끝나는 대로 순차적으로 게시됩니다. 종목을 선택하면 해당 결과만 볼 수 있습니다.</p>
+    <p class="sub">대회와 종목을 선택하면 참가자 전체 기록을 배번순으로 볼 수 있습니다. 배번이나 이름을 누르면 기념촬영용 기록 화면이 열립니다.</p>
+
+    <div class="field results-search">
+      <label for="resultsSearch">배번 또는 이름으로 찾기</label>
+      <input type="search" id="resultsSearch" placeholder="예: 125 또는 홍길동" autocomplete="off" enterkeyhint="search">
+    </div>
 
     <div class="filter-row" id="filterRow"></div>
+    <div class="filter-row filter-row-sub" id="sportFilterRow"></div>
     <div id="resultsContainer"></div>
   </div>
 </section>
@@ -41,6 +47,20 @@
     <span>문의: 체육교육팀</span>
   </div>
 </footer>
+
+<div class="record-overlay" id="recordOverlay" hidden>
+  <div class="record-card" role="dialog" aria-modal="true" aria-labelledby="recordOverlayName">
+    <button type="button" class="record-close" id="recordOverlayClose" aria-label="닫기">✕</button>
+    <p class="record-competition" id="recordOverlayCompetition"></p>
+    <p class="record-sport" id="recordOverlaySport"></p>
+    <div class="record-bib" id="recordOverlayBib"></div>
+    <p class="record-school" id="recordOverlaySchool"></p>
+    <p class="record-name" id="recordOverlayName"></p>
+    <div class="record-time-label">기록</div>
+    <div class="record-time" id="recordOverlayTime"></div>
+    <p class="record-brand">마이스포츠클럽 · sportsclub.my</p>
+  </div>
+</div>
 
 <script src="config.js"></script>
 <script type="module" src="script.js"></script>

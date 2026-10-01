@@ -1,5 +1,6 @@
-// 결과 페이지 렌더링 — Supabase의 results 테이블에서 데이터를 읽어 그립니다.
-// 결과 입력/수정은 관리자 페이지(admin.html)의 "대회 결과 관리" 탭에서 합니다.
+// 결과 페이지 렌더링 — Supabase RPC get_public_results(comp)로 대회별 참가자 전체와 기록을 읽어
+// 종목(sport)별로 배번순 표를 그립니다. 기록이 없는 참가자도 함께 표시됩니다.
+// 배번·이름을 누르면 기념촬영용 전체화면 기록 카드가 열립니다.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -7,6 +8,8 @@ const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
 const container = document.getElementById("resultsContainer");
 const filterRow = document.getElementById("filterRow");
+const sportFilterRow = document.getElementById("sportFilterRow");
+const searchInput = document.getElementById("resultsSearch");
 
 // 항상 보여줄 대회 목록 (데이터가 아직 없어도 버튼은 보이도록 고정 목록으로 관리)
 const KNOWN_COMPETITIONS = [
@@ -15,144 +18,205 @@ const KNOWN_COMPETITIONS = [
   "제43회 교육장기 육상경기대회",
 ];
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[c]);
+}
+
+function byBib(a, b) {
+  if (a.bib_number == null && b.bib_number == null) return a.application_id - b.application_id;
+  if (a.bib_number == null) return 1;
+  if (b.bib_number == null) return -1;
+  return a.bib_number - b.bib_number;
+}
+
+/* ============ 기념촬영용 전체화면 기록 카드 ============ */
+
+const overlay = document.getElementById("recordOverlay");
+const overlayFields = {
+  competition: document.getElementById("recordOverlayCompetition"),
+  sport: document.getElementById("recordOverlaySport"),
+  bib: document.getElementById("recordOverlayBib"),
+  school: document.getElementById("recordOverlaySchool"),
+  name: document.getElementById("recordOverlayName"),
+  time: document.getElementById("recordOverlayTime"),
+};
+let lastFocused = null;
+
+function openOverlay(row) {
+  overlayFields.competition.textContent = row.competition || "";
+  overlayFields.sport.textContent = row.sport || "";
+  overlayFields.bib.textContent = row.bib_number ?? "";
+  overlayFields.bib.hidden = row.bib_number == null;
+  overlayFields.school.textContent = row.school || "";
+  overlayFields.name.textContent = row.name || "";
+  overlayFields.time.textContent = row.record_time || "기록 입력 전";
+  overlayFields.time.classList.toggle("pending", !row.record_time);
+
+  lastFocused = document.activeElement;
+  overlay.hidden = false;
+  document.body.classList.add("overlay-open");
+  document.getElementById("recordOverlayClose").focus();
+}
+
+function closeOverlay() {
+  if (overlay.hidden) return;
+  overlay.hidden = true;
+  document.body.classList.remove("overlay-open");
+  if (lastFocused) lastFocused.focus();
+}
+
+if (overlay) {
+  document.getElementById("recordOverlayClose").addEventListener("click", closeOverlay);
+  // 카드 바깥(어두운 배경)을 누르면 닫힘
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeOverlay();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeOverlay();
+  });
+}
+
+/* ============ 대회/종목 선택 및 표 ============ */
+
 if (container && filterRow) {
-  let RESULTS = [];
-  let sports = ["전체", ...KNOWN_COMPETITIONS];
-
   const preselected = new URLSearchParams(window.location.search).get("competition");
-  let activeSport = "전체";
+  let activeCompetition = KNOWN_COMPETITIONS.includes(preselected) ? preselected : KNOWN_COMPETITIONS[0];
+  let activeSport = "";
+  let rows = []; // 현재 대회의 참가자 전체
+  let sports = [];
+  let query = "";
+  let loadToken = 0;
 
-  function rankClass(rank) {
-    if (rank === 1) return "gold";
-    if (rank === 2) return "silver";
-    if (rank === 3) return "bronze";
-    return "";
-  }
-
-  function timeToSeconds(t) {
-    if (!t) return null;
-    const parts = String(t).split(":").map(Number);
-    if (parts.some((n) => isNaN(n))) return null;
-    return parts.reduceRight((acc, v, i, arr) => acc + v * Math.pow(60, arr.length - 1 - i), 0);
-  }
-
-  function groupResults(rows) {
-    // competition + division 조합별로 그룹핑
-    const map = new Map();
-    rows.forEach((r) => {
-      const key = r.competition + "|||" + r.division;
-      if (!map.has(key)) {
-        map.set(key, {
-          sport: r.competition,
-          division: r.division,
-          date: r.date,
-          entries: [],
-        });
-      }
-      map.get(key).entries.push({ rank: r.rank, recordTime: r.record_time, name: r.name, note: r.note });
+  function renderButtons(target, items, active, onSelect) {
+    target.innerHTML = "";
+    items.forEach((item) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "filter-btn" + (item === active ? " active" : "");
+      btn.textContent = item;
+      btn.addEventListener("click", () => onSelect(item));
+      target.appendChild(btn);
     });
-    return Array.from(map.values());
   }
 
   function renderFilters() {
-    filterRow.innerHTML = "";
-    sports.forEach((sport) => {
-      const btn = document.createElement("button");
-      btn.className = "filter-btn" + (sport === activeSport ? " active" : "");
-      btn.textContent = sport;
-      btn.addEventListener("click", () => {
-        activeSport = sport;
-        renderFilters();
-        renderResults();
-      });
-      filterRow.appendChild(btn);
+    renderButtons(filterRow, KNOWN_COMPETITIONS, activeCompetition, (comp) => {
+      if (comp === activeCompetition) return;
+      activeCompetition = comp;
+      const url = new URL(window.location.href);
+      url.searchParams.set("competition", comp);
+      history.replaceState(null, "", url);
+      loadResults();
+    });
+    renderButtons(sportFilterRow, query ? [] : sports, activeSport, (sport) => {
+      activeSport = sport;
+      renderFilters();
+      renderResults();
     });
   }
 
-  function renderResults() {
-    container.innerHTML = "";
-    const groups =
-      activeSport === "전체"
-        ? RESULTS
-        : RESULTS.filter((g) => g.sport === activeSport);
+  function matchesQuery(row) {
+    if (!query) return true;
+    if (/^\d+$/.test(query)) return String(row.bib_number ?? "").startsWith(query);
+    return String(row.name || "").replace(/\s/g, "").includes(query.replace(/\s/g, ""));
+  }
 
-    if (groups.length === 0) {
-      container.innerHTML = '<p class="empty-note">아직 게시된 결과가 없습니다.</p>';
-      return;
-    }
-
-    groups.forEach((group) => {
-      const section = document.createElement("div");
-      section.className = "result-group";
-
-      const heading = document.createElement("h3");
-      heading.innerHTML = `${group.sport} <span class="division">${group.division}${
-        group.date ? " · " + group.date : ""
-      }</span>`;
-      section.appendChild(heading);
-
-      if (!group.entries || group.entries.length === 0) {
-        const empty = document.createElement("p");
-        empty.className = "empty-note";
-        empty.textContent = "결과 발표 예정입니다.";
-        section.appendChild(empty);
-      } else {
-        const sortedEntries = [...group.entries].sort((a, b) => {
-          if (a.rank != null && b.rank != null) return a.rank - b.rank;
-          if (a.rank != null) return -1;
-          if (b.rank != null) return 1;
-          const ta = timeToSeconds(a.recordTime);
-          const tb = timeToSeconds(b.recordTime);
-          if (ta == null && tb == null) return 0;
-          if (ta == null) return 1;
-          if (tb == null) return -1;
-          return ta - tb;
-        });
-        const table = document.createElement("table");
-        table.className = "result-table";
-        table.innerHTML = `
+  function renderTable(groupRows) {
+    return `
+      <div style="overflow-x:auto;">
+        <table class="result-table public-result-table">
           <thead>
-            <tr><th style="width:60px;">순위</th><th>이름 / 팀</th><th style="width:100px;">기록</th><th>비고</th></tr>
+            <tr><th style="width:70px;">배번</th><th>학교</th><th>이름</th><th style="width:100px;">기록</th><th>비고</th></tr>
           </thead>
           <tbody>
-            ${sortedEntries
+            ${groupRows
               .map(
-                (e, i) => `
+                (r) => `
               <tr>
-                <td class="rank ${rankClass(e.rank ?? (e.recordTime ? i + 1 : null))}">${e.rank ?? (e.recordTime ? i + 1 : "")}</td>
-                <td>${e.name}</td>
-                <td style="font-family:var(--font-mono);">${e.recordTime || ""}</td>
-                <td style="color:var(--ink-soft);">${e.note || ""}</td>
+                <td>${r.bib_number != null ? `<button type="button" class="record-link bib-link" data-id="${r.application_id}">${r.bib_number}</button>` : ""}</td>
+                <td>${escapeHtml(r.school)}</td>
+                <td><button type="button" class="record-link" data-id="${r.application_id}">${escapeHtml(r.name) || "(이름 없음)"}</button></td>
+                <td class="record-cell${r.record_time ? "" : " empty"}">${r.record_time ? escapeHtml(r.record_time) : "-"}</td>
+                <td style="color:var(--ink-soft);">${escapeHtml(r.note)}</td>
               </tr>`
               )
               .join("")}
           </tbody>
-        `;
-        section.appendChild(table);
-      }
+        </table>
+      </div>`;
+  }
 
-      container.appendChild(section);
+  function renderResults() {
+    if (rows.length === 0) {
+      container.innerHTML = '<p class="empty-note">아직 이 대회의 참가자 명단이 없습니다.</p>';
+      return;
+    }
+
+    // 검색 중에는 종목과 상관없이 대회 전체에서 찾음
+    const targetSports = query ? sports : [activeSport];
+    const groups = targetSports
+      .map((sport) => ({ sport, items: rows.filter((r) => r.sport === sport && matchesQuery(r)) }))
+      .filter((g) => g.items.length > 0);
+
+    if (groups.length === 0) {
+      container.innerHTML = `<p class="empty-note">"${escapeHtml(query)}"에 해당하는 참가자를 찾을 수 없습니다.</p>`;
+      return;
+    }
+
+    container.innerHTML = groups
+      .map((g) => {
+        const recorded = g.items.filter((r) => r.record_time).length;
+        const summary = query ? `검색 결과 ${g.items.length}명` : `참가 ${g.items.length}명 · 기록 ${recorded}명`;
+        return `
+        <div class="result-group">
+          <h3>${escapeHtml(g.sport)} <span class="division">${summary}</span></h3>
+          ${renderTable(g.items)}
+        </div>`;
+      })
+      .join("");
+  }
+
+  container.addEventListener("click", (e) => {
+    const link = e.target.closest(".record-link");
+    if (!link) return;
+    const row = rows.find((r) => String(r.application_id) === link.dataset.id);
+    if (row) openOverlay(row);
+  });
+
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      query = searchInput.value.trim();
+      renderFilters();
+      renderResults();
     });
   }
 
   async function loadResults() {
+    const token = ++loadToken;
+    rows = [];
+    sports = [];
+    activeSport = "";
+    renderFilters();
     container.innerHTML = '<p class="empty-note">불러오는 중…</p>';
 
-    const { data, error } = await supabase
-      .from("results")
-      .select("*")
-      .order("competition", { ascending: true })
-      .order("division", { ascending: true })
-      .order("rank", { ascending: true });
+    const { data, error } = await supabase.rpc("get_public_results", { comp: activeCompetition });
+    if (token !== loadToken) return; // 그 사이 다른 대회를 선택한 경우 무시
 
     if (error) {
-      container.innerHTML = '<p class="empty-note">결과를 불러오지 못했습니다. (관리자에게 문의해 주세요: ' + error.message + ')</p>';
+      container.innerHTML =
+        '<p class="empty-note">결과를 불러오지 못했습니다. (관리자에게 문의해 주세요: ' + escapeHtml(error.message) + ")</p>";
       return;
     }
 
-    RESULTS = groupResults(data || []);
-    sports = ["전체", ...Array.from(new Set([...KNOWN_COMPETITIONS, ...RESULTS.map((g) => g.sport)]))];
-    activeSport = sports.includes(preselected) ? preselected : "전체";
+    rows = (data || []).map((r) => ({ ...r, sport: r.sport || "기타" })).sort(byBib);
+    sports = Array.from(new Set(rows.map((r) => r.sport))).sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
+    activeSport = sports[0] || "";
 
     renderFilters();
     renderResults();
