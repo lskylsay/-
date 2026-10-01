@@ -191,15 +191,18 @@ async function saveRowAndAdvance(idx) {
   recBibSearch.focus();
 }
 
-function runSearch() {
-  // 숫자가 아닌 문자(공백 등)는 자동으로 제거해서 검색어로 사용
+function sanitizeSearchInput() {
   const digitsOnly = recBibSearch.value.replace(/\D/g, "");
   if (digitsOnly !== recBibSearch.value) recBibSearch.value = digitsOnly;
-  bibFilter = digitsOnly;
+}
+
+function runSearch() {
+  sanitizeSearchInput();
+  bibFilter = recBibSearch.value;
   renderRecTable();
 }
 
-recBibSearch.addEventListener("input", runSearch);
+recBibSearch.addEventListener("input", sanitizeSearchInput);
 recBibSearch.addEventListener("keydown", (e) => {
   if (e.key === "Enter") runSearch();
 });
