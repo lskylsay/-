@@ -19,7 +19,7 @@
 | `admin.html` | `admin.js` | 관리자 (GitHub OAuth 로그인, `ADMIN_EMAIL`만): 신청 관리·배번 등록, 대회 결과 관리(엑셀 업로드), 대회요강·학교체육 게시글 업로드 |
 | `recorder.html` | `recorder.js` | 경기기록원 기록 입력 (PIN 입장, 로그인 없이 anon 키로 동작) |
 | `results.html` | `script.js` | 대회 결과 공개 조회 (RPC `get_public_results`) |
-| `guidelines.html` | `guidelines.js` | 대회요강 게시판 (`guidelines`, storage `guideline-files`) |
+| `guidelines.html` | `guidelines.js` | 대회요강 게시판 (`guidelines`, storage `guideline-files`). `preview_path`(미리보기용 PDF)가 있으면 제목 클릭 시 화면 안 모달로 PDF 표시(원본 다운로드·닫기·Esc), 없으면 바로 다운로드 |
 | `schoolpe.html`, `schoolpe-*.html` | `schoolpe-board.js` | 학교체육업무지원 게시판. 각 페이지가 `window.SCHOOLPE_CATEGORY`를 지정 (`school_pe_posts`, storage `schoolpe-files`) |
 
 공통 파일:
