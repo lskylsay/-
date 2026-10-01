@@ -160,6 +160,46 @@ a { color: inherit; }
 
 .hero .wrap {
   display: block;
+  position: relative;
+}
+
+/* 히어로 오른쪽 위 QR코드 카드 (index.html) */
+.hero-qr {
+  position: absolute;
+  top: -40px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+  text-decoration: none;
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.hero-qr:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.34);
+}
+.hero-qr-code img {
+  display: block;
+  width: 120px;
+  height: 120px;
+}
+.hero-qr-text {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+.hero-qr-text strong {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--clay);
 }
 
 .bib {
@@ -262,6 +302,27 @@ a { color: inherit; }
   .hero p.lede {
     text-align: left;
     max-width: none;
+  }
+  /* 휴대폰: QR카드를 환영 문구 아래로 내려 가로 배치 */
+  .hero .wrap.hero-with-qr {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .hero .hero-with-qr p.lede {
+    flex: none;
+  }
+  .hero-qr {
+    position: static;
+    order: 99;
+    flex-direction: row;
+    text-align: left;
+    gap: 12px;
+    margin-top: 24px;
+  }
+  .hero-qr-code img {
+    width: 84px;
+    height: 84px;
   }
 }
 
