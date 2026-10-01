@@ -30,6 +30,25 @@ pinInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") tryEnter();
 });
 
+/* ============ 탭: 기록 입력 / 대회 결과 (실명 확인) ============ */
+
+const recInputTabBtn = document.getElementById("recInputTabBtn");
+const recResultsTabBtn = document.getElementById("recResultsTabBtn");
+const recInputSection = document.getElementById("recInputSection");
+const recResultsSection = document.getElementById("recResultsSection");
+
+function showRecorderTab(tab) {
+  recInputTabBtn.classList.toggle("active", tab === "input");
+  recResultsTabBtn.classList.toggle("active", tab === "results");
+  recInputSection.style.display = tab === "input" ? "" : "none";
+  recResultsSection.style.display = tab === "results" ? "" : "none";
+  // 결과 탭을 열 때마다 다시 불러와 방금 입력한 기록까지 반영 (script.js가 처리)
+  if (tab === "results") window.dispatchEvent(new Event("results:reload"));
+}
+
+recInputTabBtn.addEventListener("click", () => showRecorderTab("input"));
+recResultsTabBtn.addEventListener("click", () => showRecorderTab("results"));
+
 /* ============ 대회/종목 선택 및 명단 로딩 ============ */
 
 const recCompetition = document.getElementById("recCompetition");
