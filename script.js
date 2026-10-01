@@ -8,9 +8,16 @@ const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 const container = document.getElementById("resultsContainer");
 const filterRow = document.getElementById("filterRow");
 
+// 항상 보여줄 대회 목록 (데이터가 아직 없어도 버튼은 보이도록 고정 목록으로 관리)
+const KNOWN_COMPETITIONS = [
+  "트랙마라톤 축제",
+  "충북교육감기 육상대회",
+  "제43회 교육장기 육상경기대회",
+];
+
 if (container && filterRow) {
   let RESULTS = [];
-  let sports = ["전체"];
+  let sports = ["전체", ...KNOWN_COMPETITIONS];
 
   const preselected = new URLSearchParams(window.location.search).get("competition");
   let activeSport = "전체";
@@ -121,12 +128,12 @@ if (container && filterRow) {
       .order("rank", { ascending: true });
 
     if (error) {
-      container.innerHTML = '<p class="empty-note">결과를 불러오지 못했습니다.</p>';
+      container.innerHTML = '<p class="empty-note">결과를 불러오지 못했습니다. (관리자에게 문의해 주세요: ' + error.message + ')</p>';
       return;
     }
 
     RESULTS = groupResults(data || []);
-    sports = ["전체", ...Array.from(new Set(RESULTS.map((g) => g.sport)))];
+    sports = ["전체", ...Array.from(new Set([...KNOWN_COMPETITIONS, ...RESULTS.map((g) => g.sport)]))];
     activeSport = sports.includes(preselected) ? preselected : "전체";
 
     renderFilters();
