@@ -645,6 +645,8 @@ const gListContainer = document.getElementById("gListContainer");
 const gTitle = document.getElementById("gTitle");
 const gFile = document.getElementById("gFile");
 initDropzone(document.getElementById("gFileDropzone"), gFile, document.getElementById("gFileName"));
+const gPreviewFile = document.getElementById("gPreviewFile");
+initDropzone(document.getElementById("gPreviewDropzone"), gPreviewFile, document.getElementById("gPreviewFileName"));
 const gNote = document.getElementById("gNote");
 const gUploadBtn = document.getElementById("gUploadBtn");
 const gUploadStatus = document.getElementById("gUploadStatus");
@@ -662,7 +664,7 @@ function renderGuidelinesAdminList(rows) {
           <div class="board-row-main">
             <strong>${g.title || g.file_name || "제목 없음"}</strong>
             ${g.note ? `<p class="board-row-note">${g.note}</p>` : ""}
-            <p class="board-row-note">${date} · ${g.file_name || ""}</p>
+            <p class="board-row-note">${date} · ${g.file_name || ""}${g.preview_path ? " · 미리보기 PDF 있음" : ""}</p>
           </div>
           <div class="board-row-side">
             <button type="button" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);" data-idx="${idx}" data-action="delete">삭제</button>
@@ -676,7 +678,9 @@ function renderGuidelinesAdminList(rows) {
       const row = rows[Number(btn.dataset.idx)];
       if (!confirm(`"${row.title || row.file_name}" 문서를 삭제할까요?`)) return;
 
-      await supabase.storage.from("guideline-files").remove([row.file_path]);
+      await supabase.storage
+        .from("guideline-files")
+        .remove([row.file_path, row.preview_path].filter(Boolean));
       const { error } = await supabase.from("guidelines").delete().eq("id", row.id);
 
       if (error) {
@@ -706,10 +710,17 @@ async function loadGuidelinesAdmin() {
 gUploadBtn.addEventListener("click", async () => {
   const title = gTitle.value.trim();
   const file = gFile.files[0];
+  const previewFile = gPreviewFile.files[0];
   const note = gNote.value.trim();
 
   if (!title || !file) {
     gUploadStatus.textContent = "제목과 파일을 모두 입력해 주세요.";
+    gUploadStatus.className = "form-status error";
+    return;
+  }
+
+  if (previewFile && !/\.pdf$/i.test(previewFile.name) && previewFile.type !== "application/pdf") {
+    gUploadStatus.textContent = "미리보기 파일은 PDF만 올릴 수 있습니다.";
     gUploadStatus.className = "form-status error";
     return;
   }
@@ -730,18 +741,38 @@ gUploadBtn.addEventListener("click", async () => {
     return;
   }
 
-  const { error } = await supabase.from("guidelines").insert([
-    {
-      title,
-      note: note || null,
-      file_path: filePath,
-      file_name: file.name,
-    },
-  ]);
+  // 미리보기용 PDF(선택)도 같은 버킷에 저장
+  let previewPath = null;
+  if (previewFile) {
+    previewPath = safeStorageKey(previewFile);
+    const { error: previewError } = await supabase.storage
+      .from("guideline-files")
+      .upload(previewPath, previewFile, { contentType: "application/pdf" });
+
+    if (previewError) {
+      await supabase.storage.from("guideline-files").remove([filePath]);
+      gUploadBtn.disabled = false;
+      gUploadStatus.textContent = "미리보기 PDF 업로드 실패: " + previewError.message;
+      gUploadStatus.className = "form-status error";
+      return;
+    }
+  }
+
+  const row = {
+    title,
+    note: note || null,
+    file_path: filePath,
+    file_name: file.name,
+  };
+  if (previewPath) row.preview_path = previewPath;
+
+  const { error } = await supabase.from("guidelines").insert([row]);
 
   gUploadBtn.disabled = false;
 
   if (error) {
+    // 등록에 실패하면 방금 올린 파일은 지워 둠
+    await supabase.storage.from("guideline-files").remove([filePath, previewPath].filter(Boolean));
     gUploadStatus.textContent = "등록 실패: " + error.message;
     gUploadStatus.className = "form-status error";
     return;
@@ -754,6 +785,9 @@ gUploadBtn.addEventListener("click", async () => {
   gFile.value = "";
   document.getElementById("gFileName").textContent = "";
   document.getElementById("gFileDropzone").classList.remove("has-file");
+  gPreviewFile.value = "";
+  document.getElementById("gPreviewFileName").textContent = "";
+  document.getElementById("gPreviewDropzone").classList.remove("has-file");
   loadGuidelinesAdmin();
 });
 

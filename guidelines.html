@@ -28,7 +28,7 @@
   <div class="wrap">
     <span class="bib">대회요강</span>
     <h2 style="margin-top:14px;">대회요강 자료실</h2>
-    <p class="sub">대회별 요강 문서를 다운로드할 수 있습니다.</p>
+    <p class="sub">대회별 요강 문서를 다운로드할 수 있습니다. "미리보기" 표시가 있는 문서는 제목을 누르면 화면에서 바로 볼 수 있습니다.</p>
 
     <div id="guidelinesList">
       <p class="empty-note">불러오는 중…</p>
@@ -42,6 +42,22 @@
     <span><a href="admin.html" style="color:inherit;">관리자</a></span>
   </div>
 </footer>
+
+<div class="pdf-modal" id="pdfModal" hidden>
+  <div class="pdf-modal-box" role="dialog" aria-modal="true" aria-labelledby="pdfModalTitle">
+    <div class="pdf-modal-head">
+      <strong class="pdf-modal-title" id="pdfModalTitle"></strong>
+      <div class="pdf-modal-actions">
+        <a class="btn btn-primary" id="pdfModalDownload" href="#" rel="noopener">원본 다운로드</a>
+        <button type="button" class="pdf-modal-close" id="pdfModalClose" aria-label="닫기" title="닫기 (Esc)">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+    <iframe class="pdf-modal-frame" id="pdfModalFrame" src="about:blank"></iframe>
+    <p class="pdf-modal-foot">미리보기가 보이지 않으면 <a id="pdfModalNewTab" href="#" target="_blank" rel="noopener">새 창에서 열기</a></p>
+  </div>
+</div>
 
 <script src="config.js"></script>
 <script type="module" src="guidelines.js"></script>

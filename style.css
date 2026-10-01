@@ -1447,3 +1447,118 @@ body.overlay-open {
   outline: 3px solid var(--gold);
   outline-offset: 2px;
 }
+
+/* ============ 대회요강 PDF 미리보기 ============ */
+.board-title-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.board-title-btn:hover,
+.board-title-btn:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+
+.preview-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  vertical-align: 2px;
+  color: var(--clay);
+  border: 1px solid var(--clay);
+  border-radius: 999px;
+}
+
+body.modal-open { overflow: hidden; }
+
+.pdf-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(16, 24, 44, 0.82);
+}
+.pdf-modal[hidden] { display: none; }
+
+.pdf-modal-box {
+  display: flex;
+  flex-direction: column;
+  width: min(1100px, 100%);
+  height: 100%;
+  background: var(--paper);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+.pdf-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 12px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pdf-modal-title {
+  min-width: 0;
+  font-size: 1.05rem;
+  color: var(--navy);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pdf-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #EDEDE8;
+  color: var(--ink);
+  cursor: pointer;
+}
+.pdf-modal-close:hover { background: var(--line); }
+
+.pdf-modal-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #525659;
+}
+
+.pdf-modal-foot {
+  margin: 0;
+  padding: 8px 20px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--line);
+}
+.pdf-modal-foot a { color: var(--clay); }
+
+/* 휴대폰: 화면 전체를 채움 */
+@media (max-width: 640px) {
+  .pdf-modal { padding: 0; }
+  .pdf-modal-box { width: 100%; height: 100%; border-radius: 0; }
+  .pdf-modal-head { padding: 8px 8px 8px 14px; }
+  .pdf-modal-title { font-size: 0.95rem; }
+  .pdf-modal-actions .btn { padding: 8px 12px; font-size: 0.85rem; }
+}
