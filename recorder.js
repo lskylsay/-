@@ -136,6 +136,14 @@ function renderRecTable() {
     ? currentRows.filter((r) => String(r.bib ?? "").startsWith(bibFilter))
     : currentRows;
 
+  if (filtered.length === 0) {
+    const msg = bibFilter
+      ? `배번 "${bibFilter}"에 해당하는 참가자를 찾을 수 없습니다. (현재 명단 총 ${currentRows.length}명 중)`
+      : "이 종목에 해당하는 참가자가 없습니다.";
+    recTableBody.innerHTML = `<tr><td colspan="6" class="empty-note">${msg}</td></tr>`;
+    return;
+  }
+
   recTableBody.innerHTML = filtered
     .map((row) => {
       const idx = currentRows.indexOf(row);
@@ -184,7 +192,10 @@ async function saveRowAndAdvance(idx) {
 }
 
 recBibSearch.addEventListener("input", () => {
-  bibFilter = recBibSearch.value.trim();
+  // 숫자가 아닌 문자(공백 등)는 자동으로 제거해서 검색어로 사용
+  const digitsOnly = recBibSearch.value.replace(/\D/g, "");
+  if (digitsOnly !== recBibSearch.value) recBibSearch.value = digitsOnly;
+  bibFilter = digitsOnly;
   renderRecTable();
 });
 
