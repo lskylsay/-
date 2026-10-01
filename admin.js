@@ -82,6 +82,13 @@ function renderFilters() {
   });
 }
 
+function extractBibNumber(r) {
+  if (r.type !== "individual") return null;
+  if (r.raw.bib_number != null) return Number(r.raw.bib_number);
+  const m = (r.raw.members || "").match(/배번\s*(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
 function renderTable() {
   let rows =
     activeCompetition === "전체" ? allRows : allRows.filter((r) => r.competition === activeCompetition);
@@ -89,8 +96,8 @@ function renderTable() {
   rows = [...rows];
   if (sortMode === "bib") {
     rows.sort((a, b) => {
-      const ba = a.raw.bib_number;
-      const bb = b.raw.bib_number;
+      const ba = extractBibNumber(a);
+      const bb = extractBibNumber(b);
       if (ba == null && bb == null) return 0;
       if (ba == null) return 1;
       if (bb == null) return -1;
@@ -104,7 +111,7 @@ function renderTable() {
     .map((r, idx) => {
       const date = new Date(r.created_at).toLocaleString("ko-KR");
       const typeLabel = r.type === "bulk" ? "일괄" : "개인";
-      const bibNumber = r.type === "individual" ? r.raw.bib_number : null;
+      const bibNumber = extractBibNumber(r);
 
       let detailCell;
       if (r.type === "bulk") {
@@ -115,11 +122,11 @@ function renderTable() {
 
       return `
         <tr>
+          <td style="font-family:var(--font-mono); font-weight:700;">${bibNumber ?? ""}</td>
           <td>${date}</td>
           <td><span class="type-badge type-badge-${r.type}">${typeLabel}</span></td>
           <td>${r.competition || ""}</td>
           <td>${r.sport || ""}</td>
-          <td style="font-family:var(--font-mono);">${bibNumber ?? ""}</td>
           <td>${r.school || ""}</td>
           <td>${r.contactName || ""}</td>
           <td>${r.contact || ""}</td>
@@ -163,10 +170,14 @@ function renderTable() {
       if (row.type === "bulk" && row.raw.file_path) {
         await supabase.storage.from("bulk-uploads").remove([row.raw.file_path]);
       }
-      const { error } = await supabase.from(tableName).delete().eq("id", row.raw.id);
+      const { data, error } = await supabase.from(tableName).delete().eq("id", row.raw.id).select();
 
       if (error) {
         alert("삭제 실패: " + error.message);
+        return;
+      }
+      if (!data || data.length === 0) {
+        alert("삭제되지 않았습니다. 관리자 권한(데이터베이스 삭제 정책)이 설정되어 있는지 확인이 필요합니다.");
         return;
       }
       loadRoster();
