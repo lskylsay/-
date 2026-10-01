@@ -559,6 +559,223 @@ section.block {
 .rank.silver { color: #8A93A3; }
 .rank.bronze { color: var(--clay); }
 
+/* 결과 페이지: 검색, 종목 필터, 배번·이름 링크 */
+.results-search {
+  max-width: 420px;
+}
+
+.results-search input {
+  font-size: 1.05rem;
+}
+
+.filter-row-sub {
+  margin-top: -16px;
+}
+
+.filter-row-sub:empty {
+  display: none;
+}
+
+.filter-row-sub .filter-btn {
+  font-size: 0.8rem;
+  padding: 6px 14px;
+}
+
+.public-result-table td {
+  vertical-align: middle;
+}
+
+.record-link {
+  font: inherit;
+  color: var(--navy);
+  font-weight: 700;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+
+.record-link:hover,
+.record-link:focus-visible {
+  color: var(--clay);
+  text-decoration-color: var(--clay);
+}
+
+.record-link.bib-link {
+  font-family: var(--font-mono);
+}
+
+.record-cell {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.record-cell.empty {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+/* 결과 페이지: 기념촬영용 전체화면 기록 카드 */
+body.overlay-open {
+  overflow: hidden;
+}
+
+.record-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(16, 24, 44, 0.82);
+}
+
+.record-overlay[hidden] {
+  display: none;
+}
+
+.record-card {
+  position: relative;
+  width: min(900px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: clamp(28px, 6vh, 56px) clamp(16px, 5vw, 56px);
+  background: var(--paper);
+  border-radius: 12px;
+  border-top: 10px solid var(--clay);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+:where(.record-card) p {
+  margin: 0;
+  max-width: 100%;
+}
+
+.record-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: #EDEDE8;
+  color: var(--ink);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.record-close:hover { background: var(--line); }
+
+.record-competition {
+  font-size: clamp(1rem, min(4vw, 4.2vh), 1.7rem);
+  font-weight: 900;
+  color: var(--navy);
+  padding: 0 40px;
+}
+
+.record-sport {
+  margin-top: 4px;
+  font-size: clamp(0.85rem, min(3vw, 3vh), 1.2rem);
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.record-bib {
+  margin: min(2.5vh, 18px) 0 min(1.5vh, 12px);
+  padding: 0.04em 0.35em;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: min(24vw, 20vh, 170px);
+  line-height: 1.1;
+  color: var(--navy);
+  border: max(3px, 0.04em) solid var(--navy);
+  border-radius: 0.08em;
+  max-width: 100%;
+}
+
+.record-school {
+  font-size: clamp(1rem, min(5vw, 4.6vh), 2rem);
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.record-name {
+  font-size: min(13vw, 10vh, 88px);
+  font-weight: 900;
+  line-height: 1.15;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.record-time-label {
+  margin-top: min(2.5vh, 20px);
+  font-size: clamp(0.75rem, min(2.6vw, 2.6vh), 1rem);
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--clay);
+}
+
+.record-time {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: min(15vw, 13vh, 120px);
+  line-height: 1.1;
+  color: var(--clay);
+  font-variant-numeric: tabular-nums;
+}
+
+.record-time.pending {
+  font-family: var(--font-body);
+  font-size: min(8vw, 7vh, 56px);
+  color: #9ca3af;
+}
+
+.record-brand {
+  margin-top: min(3vh, 24px);
+  font-size: 0.75rem;
+  color: #9ca3af;
+  letter-spacing: 0.05em;
+}
+
+/* 휴대폰 가로 화면: 배번은 왼쪽, 이름·기록은 오른쪽에 배치해 세로 공간 확보 */
+@media (orientation: landscape) and (max-height: 560px) {
+  .record-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "comp comp"
+      "sport sport"
+      "bib school"
+      "bib name"
+      "bib label"
+      "bib time"
+      "brand brand";
+    column-gap: 5vw;
+    align-items: center;
+    padding: 20px 56px 16px;
+  }
+  .record-competition { grid-area: comp; }
+  .record-sport { grid-area: sport; }
+  .record-bib { grid-area: bib; font-size: min(18vw, 30vh); margin: 2vh 0 0; }
+  .record-school { grid-area: school; margin-top: 2vh; }
+  .record-name { grid-area: name; font-size: min(8vw, 14vh); }
+  .record-time-label { grid-area: label; margin-top: 1vh; }
+  .record-time { grid-area: time; font-size: min(9vw, 17vh); }
+  .record-time.pending { font-size: min(5vw, 9vh); }
+  .record-brand { grid-area: brand; margin-top: 1.5vh; }
+}
+
 .empty-note {
   color: var(--ink-soft);
   font-size: 0.92rem;
