@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>경기기록원 — 마이스포츠클럽</title>
+<meta name="description" content="경기 기록 입력 전용 페이지">
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="header-left">
+      <a href="index.html" class="brand">마이스포츠클럽<span>.</span></a>
+      <a href="index.html" class="header-home-btn">🏠 처음화면</a>
+    </div>
+  </div>
+</header>
+
+<section class="block">
+  <div class="wrap">
+    <span class="bib">경기기록원</span>
+    <h2 style="margin-top:14px;">경기 기록 입력</h2>
+    <p class="sub">참가신청자 명단(배번순)을 불러와 순위를 바로 입력할 수 있습니다.</p>
+
+    <!-- 비밀번호 입장 화면 -->
+    <div id="pinGate" class="notice-card" style="max-width:360px;">
+      <h2>입장 비밀번호</h2>
+      <div class="field" style="margin-bottom:12px;">
+        <input type="password" id="pinInput" inputmode="numeric" maxlength="4" placeholder="4자리 숫자"
+          style="width:100%; font-size:1.3rem; letter-spacing:0.3em; text-align:center; padding:12px; border-radius:4px; border:1px solid var(--line);">
+      </div>
+      <button type="button" class="btn btn-primary" id="pinSubmitBtn" style="width:100%; justify-content:center;">입장</button>
+      <p id="pinError" class="form-status error" style="margin-top:10px;"></p>
+    </div>
+
+    <!-- 기록 입력 화면 -->
+    <div id="recorderApp" style="display:none;">
+      <div class="form-row">
+        <div class="field">
+          <label for="recCompetition">대회 *</label>
+          <select id="recCompetition">
+            <option value="">선택</option>
+            <option value="트랙마라톤 축제">트랙마라톤 축제</option>
+            <option value="충북교육감기 육상대회">충북교육감기 육상대회</option>
+            <option value="제43회 교육장기 육상경기대회">제43회 교육장기 육상경기대회</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="recSport">종목/부문 *</label>
+          <select id="recSport" disabled>
+            <option value="">대회를 먼저 선택하세요</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; align-items:center; margin:16px 0;">
+        <button type="button" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);" id="recRefreshBtn">명단 새로고침</button>
+        <button type="button" class="btn btn-primary" id="recSaveAllBtn">입력한 순위 전체 저장</button>
+        <p id="recStatus" class="form-status" style="margin:0;"></p>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table class="result-table" id="recTable">
+          <thead>
+            <tr>
+              <th style="width:70px;">배번</th>
+              <th>학교</th>
+              <th>이름</th>
+              <th style="width:90px;">순위</th>
+              <th>비고</th>
+              <th style="width:70px;"></th>
+            </tr>
+          </thead>
+          <tbody id="recTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>마이스포츠클럽 · 경기기록원</span>
+  </div>
+</footer>
+
+<script src="config.js"></script>
+<script type="module" src="recorder.js"></script>
+</body>
+</html>
