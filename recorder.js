@@ -191,13 +191,19 @@ async function saveRowAndAdvance(idx) {
   recBibSearch.focus();
 }
 
-recBibSearch.addEventListener("input", () => {
+function runSearch() {
   // 숫자가 아닌 문자(공백 등)는 자동으로 제거해서 검색어로 사용
   const digitsOnly = recBibSearch.value.replace(/\D/g, "");
   if (digitsOnly !== recBibSearch.value) recBibSearch.value = digitsOnly;
   bibFilter = digitsOnly;
   renderRecTable();
+}
+
+recBibSearch.addEventListener("input", runSearch);
+recBibSearch.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") runSearch();
 });
+document.getElementById("recBibSearchBtn").addEventListener("click", runSearch);
 
 async function saveRow(idx) {
   const row = currentRows[idx];
