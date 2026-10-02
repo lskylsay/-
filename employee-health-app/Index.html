@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<title><?= appTitle ?></title>
+<style>
+  :root {
+    --bg: #f4f6f9; --card: #fff; --ink: #1d2433; --muted: #6b7385; --line: #e2e6ee;
+    --brand: #1f7a5a; --brand-soft: #e3f3ec; --warn: #c2410c; --warn-soft: #fff1e8; --danger: #b91c1c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; font-size: 15px; }
+  header { background: var(--brand); color: #fff; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  header .who { font-size: 13px; opacity: .9; }
+  header button { background: rgba(255,255,255,.18); color: #fff; border: 0; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 14px; }
+  .card h2 { font-size: 16px; margin: 0 0 12px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tabs button { flex: 1; padding: 10px; border: 1px solid var(--line); background: #fff; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  .tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  label.f { display: block; font-weight: 600; margin: 16px 0 6px; font-size: 14px; }
+  label.f small { font-weight: 400; color: var(--muted); }
+  input[type=text], input[type=password], input[type=number], input[type=date], textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; font-family: inherit; }
+  textarea { min-height: 70px; resize: vertical; }
+  .scale { display: flex; gap: 6px; }
+  .scale button { flex: 1; padding: 10px 0; border: 1px solid var(--line); background: #fff; border-radius: 8px; cursor: pointer; font-size: 20px; line-height: 1.1; }
+  .scale button small { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .scale button.on { border-color: var(--brand); background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { padding: 7px 12px; border: 1px solid var(--line); background: #fff; border-radius: 999px; cursor: pointer; font-size: 13px; }
+  .chips button.on { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+  .chips button.none.on { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .btn { display: block; width: 100%; margin-top: 20px; padding: 13px; background: var(--brand); color: #fff; border: 0; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .note { padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
+  .note.ok { background: var(--brand-soft); color: var(--brand); }
+  .note.warn { background: var(--warn-soft); color: var(--warn); }
+  .note.err { background: #fde8e8; color: var(--danger); }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .kpi { background: var(--bg); border-radius: 10px; padding: 12px; text-align: center; }
+  .kpi b { display: block; font-size: 22px; }
+  .kpi span { font-size: 12px; color: var(--muted); }
+  .kpi.alert b { color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 7px 6px; text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.flag { color: var(--warn); }
+  .tablewrap { overflow-x: auto; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 110px; padding-top: 6px; }
+  .bars div { flex: 1; text-align: center; font-size: 10px; color: var(--muted); display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+  .bars i { display: block; background: var(--brand); border-radius: 3px 3px 0 0; min-height: 2px; }
+  .seg { display: flex; gap: 6px; margin-bottom: 10px; }
+  .seg button { padding: 6px 12px; border: 1px solid var(--line); background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .seg button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  svg text { font-family: inherit; }
+  .hidden { display: none !important; }
+  .loading { text-align: center; padding: 40px; color: var(--muted); }
+  @media (max-width: 520px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .scale button { font-size: 18px; }
+    header .who { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><?= appTitle ?></h1>
+  <span class="who" id="who"></span>
+  <button id="logoutBtn" class="hidden" type="button">로그아웃</button>
+</header>
+
+<main>
+  <div id="msg"></div>
+  <div id="loading" class="loading">불러오는 중…</div>
+
+  <!-- PIN 로그인 (도메인 이메일이 없는 사용자) -->
+  <section id="loginView" class="card hidden">
+    <h2>로그인</h2>
+    <p class="muted">관리자에게 받은 이름과 PIN을 입력하세요.</p>
+    <label class="f">이름</label>
+    <input type="text" id="loginName" autocomplete="name">
+    <label class="f">PIN</label>
+    <input type="password" id="loginPin" inputmode="numeric" autocomplete="off">
+    <button class="btn" id="loginBtn" type="button">들어가기</button>
+  </section>
+
+  <!-- 첫 등록 (도메인 이메일 사용자) -->
+  <section id="registerView" class="card hidden">
+    <h2>처음 오셨네요</h2>
+    <p class="muted" id="regEmail"></p>
+    <label class="f">이름</label>
+    <input type="text" id="regName">
+    <label class="f">부서</label>
+    <input type="text" id="regDept">
+    <button class="btn" id="regBtn" type="button">등록하기</button>
+  </section>
+
+  <div id="appView" class="hidden">
+    <nav class="tabs">
+      <button type="button" data-tab="today" class="on">오늘 기록</button>
+      <button type="button" data-tab="history">내 기록</button>
+      <button type="button" data-tab="admin" id="adminTabBtn" class="hidden">관리자</button>
+    </nav>
+
+    <!-- 오늘 기록 -->
+    <section id="tab-today" class="card">
+      <h2 id="todayTitle">오늘의 건강 상태</h2>
+      <div id="todayStatus"></div>
+
+      <label class="f">체온 <small>(℃)</small></label>
+      <input type="number" id="temp" step="0.1" min="34" max="42" inputmode="decimal" placeholder="36.5">
+
+      <label class="f">오늘 컨디션</label>
+      <div class="scale" id="conditionScale"></div>
+
+      <label class="f">스트레스 정도</label>
+      <div class="scale" id="stressScale"></div>
+
+      <div class="row2">
+        <div>
+          <label class="f">지난밤 수면 <small>(시간)</small></label>
+          <input type="number" id="sleep" step="0.5" min="0" max="24" inputmode="decimal" placeholder="7">
+        </div>
+        <div>
+          <label class="f">운동 <small>(분)</small></label>
+          <input type="number" id="exercise" step="5" min="0" max="600" inputmode="numeric" placeholder="0">
+        </div>
+      </div>
+
+      <label class="f">증상 <small>(해당하는 것 모두)</small></label>
+      <div class="chips" id="symptomChips"></div>
+
+      <label class="f">메모 <small>(선택)</small></label>
+      <textarea id="memo" maxlength="300" placeholder="특이사항이 있으면 적어 주세요"></textarea>
+
+      <button class="btn" id="submitBtn" type="button">제출하기</button>
+    </section>
+
+    <!-- 내 기록 -->
+    <section id="tab-history" class="card hidden">
+      <h2>내 건강 기록</h2>
+      <div class="seg" id="rangeSeg">
+        <button type="button" data-days="7">7일</button>
+        <button type="button" data-days="30" class="on">30일</button>
+        <button type="button" data-days="90">90일</button>
+      </div>
+      <div class="kpis" id="histKpis"></div>
+      <h2 style="margin-top:18px">컨디션 · 스트레스</h2>
+      <div id="chartCond"></div>
+      <h2 style="margin-top:18px">체온</h2>
+      <div id="chartTemp"></div>
+      <h2 style="margin-top:18px">기록 목록</h2>
+      <div class="tablewrap" id="histTable"></div>
+    </section>
+
+    <!-- 관리자 -->
+    <section id="tab-admin" class="hidden">
+      <div class="card">
+        <h2>날짜별 현황</h2>
+        <input type="date" id="adminDate">
+        <div class="kpis" id="adminKpis" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h2>주의 대상</h2>
+        <div class="tablewrap" id="adminFlagged"></div>
+      </div>
+      <div class="card">
+        <h2>미제출</h2>
+        <div id="adminMissing"></div>
+      </div>
+      <div class="card">
+        <h2>증상 집계</h2>
+        <div id="adminSymptoms"></div>
+      </div>
+      <div class="card">
+        <h2>최근 14일 제출률</h2>
+        <div class="bars" id="adminTrend"></div>
+      </div>
+      <div class="card">
+        <h2>전체 기록</h2>
+        <div class="tablewrap" id="adminRecords"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+  const AUTH_KEY = 'employeeHealthAuth';
+  const CONDITION = [['😫', '매우 나쁨'], ['😟', '나쁨'], ['😐', '보통'], ['🙂', '좋음'], ['😄', '매우 좋음']];
+  const STRESS = [['😌', '거의 없음'], ['🙂', '조금'], ['😐', '보통'], ['😣', '많음'], ['🤯', '매우 많음']];
+
+  let auth = loadAuth();
+  let state = { init: null, condition: null, stress: null, symptoms: new Set(), noSymptom: false, days: 30 };
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const fmt = (v, unit) => v == null ? '-' : v + (unit || '');
+
+  function call(fn, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args);
+    });
+  }
+
+  function loadAuth() {
+    try { return JSON.parse(localStorage.getItem(AUTH_KEY)) || null; } catch (e) { return null; }
+  }
+  function saveAuth(a) {
+    try { a ? localStorage.setItem(AUTH_KEY, JSON.stringify(a)) : localStorage.removeItem(AUTH_KEY); } catch (e) {}
+  }
+
+  function showMsg(text, type) {
+    $('msg').innerHTML = text ? `<div class="note ${type || 'err'}">${esc(text)}</div>` : '';
+    if (text) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  const errText = e => (e && e.message ? e.message : String(e)).replace(/^Exception:\s*/, '');
+
+  function show(view) {
+    ['loading', 'loginView', 'registerView', 'appView'].forEach(id => $(id).classList.toggle('hidden', id !== view));
+  }
+
+  /* ───── 시작 ───── */
+  function start() {
+    show('loading');
+    call('getInitData', auth).then(render).catch(e => {
+      saveAuth(null); auth = null;
+      showMsg(errText(e));
+      show('loginView');
+    });
+  }
+
+  function render(init) {
+    state.init = init;
+    const u = init.user;
+    if (!u) { show('loginView'); return; }
+    if (!u.registered) {
+      $('regEmail').textContent = u.email + ' 계정으로 등록합니다.';
+      show('registerView');
+      return;
+    }
+    $('who').textContent = `${u.dept ? u.dept + ' · ' : ''}${u.name} 님`;
+    $('logoutBtn').classList.toggle('hidden', !u.viaPin);
+    $('adminTabBtn').classList.toggle('hidden', !u.isAdmin);
+    $('todayTitle').textContent = `${init.today} 건강 상태`;
+    buildForm(init);
+    show('appView');
+  }
+
+  /* ───── 로그인 / 등록 ───── */
+  $('loginBtn').onclick = () => {
+    const a = { name: $('loginName').value.trim(), pin: $('loginPin').value.trim() };
+    if (!a.name || !a.pin) { showMsg('이름과 PIN을 입력하세요.'); return; }
+    showMsg('');
+    $('loginBtn').disabled = true;
+    call('getInitData', a).then(init => {
+      auth = a; saveAuth(a); render(init);
+    }).catch(e => showMsg(errText(e))).finally(() => { $('loginBtn').disabled = false; });
+  };
+  $('loginPin').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+
+  $('logoutBtn').onclick = () => { saveAuth(null); auth = null; showMsg(''); show('loginView'); };
+
+  $('regBtn').onclick = () => {
+    $('regBtn').disabled = true;
+    call('registerProfile', $('regName').value, $('regDept').value)
+      .then(init => { showMsg('등록되었습니다.', 'ok'); render(init); })
+      .catch(e => showMsg(errText(e)))
+      .finally(() => { $('regBtn').disabled = false; });
+  };
+
+  /* ───── 탭 ───── */
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+    ['today', 'history', 'admin'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+    showMsg('');
+    if (b.dataset.tab === 'history') loadHistory();
+    if (b.dataset.tab === 'admin') loadDashboard();
+  });
+
+  /* ───── 오늘 기록 폼 ───── */
+  function scaleButtons(el, items, key) {
+    el.innerHTML = items.map((it, i) =>
+      `<button type="button" data-v="${i + 1}" class="${state[key] === i + 1 ? 'on' : ''}">${it[0]}<small>${it[1]}</small></button>`).join('');
+    el.querySelectorAll('button').forEach(b => b.onclick = () => {
+      state[key] = Number(b.dataset.v);
+      el.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    });
+  }
+
+  function renderChips() {
+    const list = state.init.config.symptoms;
+    $('symptomChips').innerHTML =
+      `<button type="button" class="none ${state.noSymptom ? 'on' : ''}" data-s="">증상 없음</button>` +
+      list.map(s => `<button type="button" class="${state.symptoms.has(s) ? 'on' : ''}" data-s="${esc(s)}">${esc(s)}</button>`).join('');
+    $('symptomChips').querySelectorAll('button').forEach(b => b.onclick = () => {
+      const s = b.dataset.s;
+      if (!s) { state.noSymptom = !state.noSymptom; if (state.noSymptom) state.symptoms.clear(); }
+      else { state.noSymptom = false; state.symptoms.has(s) ? state.symptoms.delete(s) : state.symptoms.add(s); }
+      renderChips();
+    });
+  }
+
+  function buildForm(init) {
+    const r = init.todayRecord;
+    state.condition = r ? r.condition : null;
+    state.stress = r ? r.stress : null;
+    state.symptoms = new Set(r ? r.symptoms : []);
+    state.noSymptom = !!(r && !r.symptoms.length);
+    $('temp').value = r && r.temp != null ? r.temp : '';
+    $('sleep').value = r && r.sleep != null ? r.sleep : '';
+    $('exercise').value = r && r.exercise != null ? r.exercise : '';
+    $('memo').value = r ? r.memo : '';
+    scaleButtons($('conditionScale'), CONDITION, 'condition');
+    scaleButtons($('stressScale'), STRESS, 'stress');
+    renderChips();
+    setTodayStatus(r);
+  }
+
+  function setTodayStatus(r) {
+    $('submitBtn').textContent = r ? '수정하기' : '제출하기';
+    if (!r) { $('todayStatus').innerHTML = ''; return; }
+    $('todayStatus').innerHTML = r.flag
+      ? `<div class="note warn">${esc(r.time)}에 제출됨 · 주의: ${esc(r.flag)}<br>몸이 불편하면 무리하지 말고 관리자에게 알려 주세요.</div>`
+      : `<div class="note ok">${esc(r.time)}에 제출했습니다. 고쳐서 다시 제출할 수 있어요.</div>`;
+  }
+
+  $('submitBtn').onclick = () => {
+    if (!state.noSymptom && !state.symptoms.size) { showMsg('증상이 없으면 "증상 없음"을 눌러 주세요.'); return; }
+    const data = {
+      temp: $('temp').value,
+      condition: state.condition,
+      stress: state.stress,
+      sleep: $('sleep').value,
+      exercise: $('exercise').value,
+      symptoms: [...state.symptoms],
+      memo: $('memo').value,
+    };
+    showMsg('');
+    $('submitBtn').disabled = true;
+    call('submitRecord', auth, data).then(res => {
+      state.init.todayRecord = res.record;
+      setTodayStatus(res.record);
+      showMsg(res.flags.length ? '제출했습니다. 주의 항목이 있어요.' : '제출했습니다. 오늘도 건강한 하루 되세요!', res.flags.length ? 'warn' : 'ok');
+    }).catch(e => showMsg(errText(e))).finally(() => { $('submitBtn').disabled = false; });
+  };
+
+  /* ───── 내 기록 ───── */
+  document.querySelectorAll('#rangeSeg button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('#rangeSeg button').forEach(x => x.classList.toggle('on', x === b));
+    state.days = Number(b.dataset.days);
+    loadHistory();
+  });
+
+  function loadHistory() {
+    $('histTable').innerHTML = '<p class="muted">불러오는 중…</p>';
+    call('getMyHistory', auth, state.days).then(h => {
+      const s = h.stats;
+      $('histKpis').innerHTML = [
+        ['기록한 날', s.count + '일'], ['평균 컨디션', fmt(s.avgCondition, ' / 5')],
+        ['평균 수면', fmt(s.avgSleep, '시간')], ['운동 합계', s.totalExercise + '분'],
+      ].map(k => `<div class="kpi"><b>${k[1]}</b><span>${k[0]}</span></div>`).join('');
+
+      const dates = listDates(h.from, h.to);
+      const by = {}; h.records.forEach(r => { by[r.date] = r; });
+      $('chartCond').innerHTML = lineChart(dates, [
+        { color: '#1f7a5a', label: '컨디션', values: dates.map(d => by[d] ? by[d].condition : null) },
+        { color: '#c2410c', label: '스트레스', values: dates.map(d => by[d] ? by[d].stress : null) },
+      ], 1, 5);
+      $('chartTemp').innerHTML = lineChart(dates, [
+        { color: '#2563eb', label: '체온', values: dates.map(d => by[d] ? by[d].temp : null) },
+      ], 35.5, 38.5, state.init.config.feverTemp);
+
+      $('histTable').innerHTML = h.records.length ? table(
+        ['날짜', '체온', '컨디션', '스트레스', '수면', '운동', '증상·메모'],
+        h.records.slice().reverse().map(r => [
+          r.date.slice(5), fmt(r.temp), CONDITION[r.condition - 1] ? CONDITION[r.condition - 1][0] : '-',
+          STRESS[r.stress - 1] ? STRESS[r.stress - 1][0] : '-', fmt(r.sleep, 'h'), fmt(r.exercise, '분'),
+          [r.symptoms.join(', '), r.memo].filter(Boolean).join(' · '),
+        ]), h.records.slice().reverse().map(r => !!r.flag)) : '<p class="muted">아직 기록이 없습니다.</p>';
+    }).catch(e => showMsg(errText(e)));
+  }
+
+  function listDates(from, to) {
+    const out = [];
+    const d = new Date(from + 'T00:00:00Z'), end = new Date(to + 'T00:00:00Z');
+    while (d <= end) { out.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); }
+    return out;
+  }
+
+  /** 의존성 없는 간단한 SVG 선 그래프 */
+  function lineChart(dates, series, min, max, threshold) {
+    const W = 700, H = 200, L = 34, R = 10, T = 12, B = 26;
+    const x = i => L + (dates.length < 2 ? 0 : i * (W - L - R) / (dates.length - 1));
+    const y = v => T + (1 - (Math.min(Math.max(v, min), max) - min) / (max - min)) * (H - T - B);
+    let g = '';
+    const ticks = 4;
+    for (let k = 0; k <= ticks; k++) {
+      const v = min + (max - min) * k / ticks;
+      g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#e2e6ee"/>` +
+        `<text x="${L - 6}" y="${y(v) + 4}" font-size="11" text-anchor="end" fill="#6b7385">${Math.round(v * 10) / 10}</text>`;
+    }
+    if (threshold != null) {
+      g += `<line x1="${L}" x2="${W - R}" y1="${y(threshold)}" y2="${y(threshold)}" stroke="#b91c1c" stroke-dasharray="4 4"/>`;
+    }
+    const step = Math.ceil(dates.length / 7);
+    dates.forEach((d, i) => {
+      if (i % step === 0 || i === dates.length - 1) {
+        g += `<text x="${x(i)}" y="${H - 6}" font-size="11" text-anchor="middle" fill="#6b7385">${d.slice(5).replace('-', '/')}</text>`;
+      }
+    });
+    series.forEach(s => {
+      let path = '', pen = false;
+      s.values.forEach((v, i) => {
+        if (v == null) { pen = false; return; }
+        path += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1);
+        pen = true;
+        g += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="${s.color}"><title>${dates[i]} ${s.label} ${v}</title></circle>`;
+      });
+      g += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2"/>`;
+    });
+    const legend = series.map(s => `<span style="color:${s.color}">● ${s.label}</span>`).join(' &nbsp; ');
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${g}</svg><div class="muted">${legend}</div>`;
+  }
+
+  function table(head, rows, flags) {
+    return '<table><thead><tr>' + head.map(h => `<th>${esc(h)}</th>`).join('') + '</tr></thead><tbody>' +
+      rows.map((r, i) => '<tr>' + r.map((c, j) =>
+        `<td class="${flags && flags[i] && j === r.length - 1 ? 'flag' : ''}">${esc(c)}</td>`).join('') + '</tr>').join('') +
+      '</tbody></table>';
+  }
+
+  /* ───── 관리자 ───── */
+  $('adminDate').onchange = () => loadDashboard();
+
+  function loadDashboard() {
+    if (!$('adminDate').value) $('adminDate').value = state.init.today;
+    $('adminRecords').innerHTML = '<p class="muted">불러오는 중…</p>';
+    call('getDashboard', auth, $('adminDate').value).then(d => {
+      $('adminKpis').innerHTML = [
+        ['대상 인원', d.total + '명', ''], ['제출', d.submittedCount + '명', ''],
+        ['제출률', d.rate + '%', ''], ['주의', d.flagged.length + '명', d.flagged.length ? 'alert' : ''],
+      ].map(k => `<div class="kpi ${k[2]}"><b>${k[1]}</b><span>${k[0]}</span></div>`).join('');
+
+      $('adminFlagged').innerHTML = d.flagged.length
+        ? table(['부서', '이름', '체온', '주의 사유', '메모'], d.flagged.map(l => [l.dept, l.name, fmt(l.temp), l.flag, l.memo]))
+        : '<p class="muted">주의 대상자가 없습니다.</p>';
+
+      $('adminMissing').innerHTML = d.notSubmitted.length
+        ? '<p>' + d.notSubmitted.map(s => esc((s.dept ? s.dept + ' ' : '') + s.name)).join(', ') + '</p>'
+        : '<p class="muted">모두 제출했습니다.</p>';
+
+      $('adminSymptoms').innerHTML = d.symptoms.length
+        ? '<div class="chips">' + d.symptoms.map(s => `<button type="button" class="on" disabled>${esc(s.name)} ${s.count}</button>`).join('') + '</div>'
+        : '<p class="muted">보고된 증상이 없습니다.</p>';
+
+      $('adminTrend').innerHTML = d.trend.map(t =>
+        `<div title="${t.date} · ${t.count}명 · 평균 컨디션 ${fmt(t.avgCondition)}">` +
+        `<span>${t.rate}%</span><i style="height:${Math.max(t.rate, 2) * 0.8}px"></i>${t.date.slice(8)}</div>`).join('');
+
+      $('adminRecords').innerHTML = d.records.length
+        ? table(['부서', '이름', '시각', '체온', '컨디션', '스트레스', '수면', '증상'],
+            d.records.map(r => [r.dept, r.name, r.time.slice(0, 5), fmt(r.temp), fmt(r.condition), fmt(r.stress), fmt(r.sleep, 'h'), r.symptoms.join(', ')]))
+        : '<p class="muted">이 날짜의 기록이 없습니다.</p>';
+    }).catch(e => showMsg(errText(e)));
+  }
+
+  start();
+</script>
+</body>
+</html>
