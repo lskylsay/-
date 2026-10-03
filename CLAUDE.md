@@ -41,7 +41,8 @@
 - RPC: `get_public_results(comp)` — 결과 페이지용. applications ⟕ results, 반환 `application_id, competition, sport, bib_number, school, name, grade, rank, record_time, note` (배번순)
 - 권한은 **RLS 정책이 실제 보안**이며, 화면의 이메일 체크·PIN은 보조 장치일 뿐입니다.
   - 관리자 전용 작업: `authenticated` + `auth.jwt() ->> 'email' = 'dkjy0906@gmail.com'`
-  - `results`: SELECT 공개, INSERT/UPDATE는 기록원용으로 public 허용, DELETE는 관리자 전용(기록원 삭제를 쓰려면 별도 정책 필요)
+  - `results`: SELECT 공개, DELETE는 관리자 전용(기록원 삭제를 쓰려면 별도 정책 필요). INSERT/UPDATE는 관리자 + **기록원 접근 기간 중에만** public 허용(`recorder_open(competition)`, 테이블 `recorder_windows`)
+  - 기록원 접근 기간은 `workroom.html` → 대회 관리 → "기록원 접근"에서 대회별로 열고 닫음. 기간이 닫혀 있으면 경기기록원 페이지(PIN 6680)에서 저장이 막힘 (RLS라 오류 없이 0건 처리될 수 있음)
 - **주의:** RLS로 UPDATE/DELETE가 막히면 Supabase는 오류 없이 0건만 처리합니다. 결과 확인이 필요하면 `.select()`로 처리된 행을 돌려받아 개수를 확인하세요.
 
 ### `results` 테이블 요점
@@ -50,6 +51,7 @@
 - 대회명 목록은 `recorder.html` select, `script.js`의 `KNOWN_COMPETITIONS`, `apply.js`의 `SPORT_OPTIONS`에 각각 하드코딩되어 있어 대회 추가 시 모두 수정해야 합니다.
 
 ## 경기기록원(`recorder.html` + `recorder.js`) 동작
+- 기록 저장은 업무실에서 연 "기록원 접근 기간" 안에서만 가능 (대회 당일 열고, 끝나면 닫기)
 - PIN(6680) 입장 후 맨 위 탭 2개(`filter-btn`): "기록 입력" / "대회 결과 (실명 확인)"
 - "대회 결과 (실명 확인)" 탭은 results.html과 같은 마크업(검색칸·대회/종목 버튼·표·`#recordOverlay`)에 `script.js`를 그대로 불러옴. 그 앞에 `window.RESULTS_SHOW_FULL_NAMES = true`를 두어 표·카드 모두 실명 표시. 탭을 열 때마다 `results:reload` 이벤트로 다시 불러와 방금 입력한 기록 반영
 - 대회 선택 → RPC로 명단 로드 → 종목 선택 → 기존 `results`와 `applications_id`로 매칭해 배번순 표시
