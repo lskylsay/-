@@ -17,7 +17,7 @@
 | `contest.html` | — | 대회 안내 |
 | `apply.html` | `apply.js` | 참가 신청 (개인 / 트랙마라톤 교사 일괄 엑셀 신청) → `applications`, `bulk_applications`, storage `bulk-uploads` |
 | `admin.html` | `admin.js` | 관리자 (GitHub OAuth 로그인, `ADMIN_EMAIL`만): 신청 관리·배번 등록, 대회 결과 관리(엑셀 업로드), 대회요강·학교체육 게시글 업로드 |
-| `workroom.html` | (파일 안에 내장) | 관리자 업무실 (admin.html 탭 줄의 "업무실" 링크). 단독 페이지로 자체 CONFIG(같은 Supabase 프로젝트·관리자 이메일)와 supabase-js UMD 사용. 사업·워크플로우, 일정·할일, 공문 초안, 대회 관리, 예산, 기록원 접근 기간 → 테이블 `admin_projects`, `admin_tasks`, `admin_workflows`, `admin_budget`, `admin_documents`, `recorder_windows` (모두 관리자 전용 RLS) |
+| `workroom.html` | (파일 안에 내장) + `hwpx-docs.js` | 관리자 업무실 (admin.html 탭 줄의 "업무실" 링크). 단독 페이지로 자체 CONFIG(같은 Supabase 프로젝트·관리자 이메일)와 supabase-js UMD 사용. 사업·워크플로우, 일정·할일, 공문 초안, 대회 관리, 예산, 기록원 접근 기간 → 테이블 `admin_projects`, `admin_tasks`, `admin_workflows`, `admin_budget`, `admin_documents`, `recorder_windows` (모두 관리자 전용 RLS) |
 | `recorder.html` | `recorder.js` + `script.js` | 경기기록원 (PIN 입장, 로그인 없이 anon 키로 동작). 탭: 기록 입력 / 대회 결과(실명 확인) |
 | `results.html` | `script.js` | 대회 결과 공개 조회 (RPC `get_public_results`) |
 | `guidelines.html` | `guidelines.js` | 대회요강 게시판 (`guidelines`, storage `guideline-files`). `preview_path`(미리보기용 PDF)가 있으면 제목 클릭 시 화면 안 모달로 PDF 표시(원본 다운로드·닫기·Esc), 없으면 바로 다운로드 |
@@ -29,6 +29,23 @@
 - `storage-key.js` — Storage 키를 영문·숫자로 안전하게 생성 (`safeStorageKey`), 원래 파일명은 DB `file_name`에 저장
 - `style.css` — 전체 공통 스타일 (CSS 변수 `--ink`, `--line`, `--font-mono` 등)
 - `*-template.xlsx` — 신청/결과 업로드용 엑셀 양식 (admin에서 SheetJS `xlsx@0.18.5` CDN 사용)
+
+## 업무실 공문 초안 → 한글(.hwpx) 내려받기
+- `workroom.html` 공문 초안 탭의 "한글(.hwpx) 내려받기" 버튼 → `hwpx-docs.js`(`window.HwpxDocs`). JSZip은 CDN(`jszip@3.10.1`), 빌드 도구 없음
+- 방식: `templates/*.hwpx` fetch → JSZip → `Contents/section0.xml`을 DOMParser로 수정 → 다시 zip(mimetype 맨 앞·STORE, `header.xml` 등 나머지 그대로). 바꾼·복제한 문단은 `<hp:linesegarray>` 삭제, 복제 문단 id 새로 부여, 표 행 수정 시 `rowAddr`·`rowCnt` 맞춤, `Preview/PrvText.txt`는 새 본문
+- 문서별 대응 (서식 = 스킬)
+  | 탭 | 함수 | 서식 파일 | 스킬 |
+  |---|---|---|---|
+  | 운영(안) | `buildPlan` | `templates/plan-template.hwpx` | jecheon-sports-plan-doc |
+  | 세부운영계획 | `buildDetail` | `templates/detail-template.hwpx` (**아직 없음**) | jecheon-detailed-operation-plan |
+  | 결과보고 | `buildOnepage` | `templates/onepage-template.hwpx` (**아직 없음**) | jecheon-onepage-report (build_onepage.py 이식) |
+- 서식 파일이 없으면 그 탭의 버튼은 "서식 파일 필요"로 꺼짐 (`HwpxDocs.hasTemplate`)
+- 화면 미리보기(`genDoc` → `HwpxDocs.previewHtml`)와 hwpx는 같은 모델(`planModel`/`detailModel`/`onepageModel`)에서 만들어 내용이 같음
+- `templates/`는 누구나 받을 수 있는 경로 → **견본 문구('○○○', '내용')만 남긴 정리본**만 둔다. 실명·학교 명단·연락처·작성자 메타데이터(`content.hpf`) 금지, `Preview/PrvText.txt` 비움, `Preview/PrvImage.png` 흰 그림
+  - `plan-template.hwpx`: 스킬 assets/template.hwpx를 정리 — 표지(글상자 2줄 '○○○'), '2026.  ○.', 머리 제목표, Ⅰ~Ⅶ 장 제목표마다 견본 문단 1개, Ⅳ 라벨 문단(행사명·주제·일시·장소·대상·- 내용·주최/주관), Ⅴ(참가 부문 및 제한 / - 내용 / 참가 신청 / 세부일정표 + 표[제목행·머리행·견본행] / ※), Ⅵ 예산표[머리행·견본행·합계행]
+  - `detail-template.hwpx` 약속: 표지 글상자 2줄(○○○), '2026.  ○.', 머리 제목표(○○○), 견본 문단 '1. ○○○' '가. 내용' '- 내용' '□ ○○○' '○ 내용' '※ 내용', 머리행에 '종별'·'시간'·'학교명'이 있는 표 3개(학교명 표는 마지막 행이 합계행)
+  - `onepage-template.hwpx` 약속(스킬과 같음): 본문 문단 [0]=제목표(제목 칸 colSpan≥6, '일자'·'부서' 칸) [1]=빈 줄 [2]=장 제목 견본 [3]=본문 견본 [5]=장 사이 빈 줄
+- 한글 프로그램이 없는 환경이라 화면 확인은 못 함 → 만든 파일은 한글에서 표·줄바꿈·쪽수 확인 필요
 
 > `README.md`는 초기 설정 안내서이며 일부 내용(`results-data.js` 등)은 현재 구조와 다릅니다. 결과는 이제 Supabase `results` 테이블로 관리됩니다.
 

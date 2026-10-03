@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Black+Han+Sans&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="hwpx-docs.js"></script>
 <style>
 :root{
   --turf:#1E4A38; --turf-2:#2C6650; --chalk:#FFFFFF; --ground:#F2F4F1; --line:#D6DDD8;
@@ -529,7 +531,7 @@ async function vDocs(){
         ${fld('admin','행정사항 (줄마다)','area')}${fld('effects','기대효과','area')}
         ${fld('resultText','운영 결과 (줄마다)','area')}${fld('improve','성과 및 개선점 (줄마다)','area')}
       </div></section>
-      <section><div class="row" style="margin-bottom:10px"><button class="btn pri" id="dsave">초안 저장</button><button class="btn" id="dcopy">텍스트 복사</button><button class="btn" id="ddoc">Word·한글용(.doc) 내려받기</button></div>
+      <section><div class="row" style="margin-bottom:10px"><button class="btn pri" id="dsave">초안 저장</button><button class="btn" id="dcopy">텍스트 복사</button><button class="btn" id="dhwpx" disabled>한글(.hwpx) 내려받기</button></div>
         <div class="paper" id="paper"></div></section></div>`;
   if (innerWidth < 1000) $('#dg').style.gridTemplateColumns = '1fr';
   const SHOW = { plan:['year','title','theme','date','time','place','targets','basis','purpose','policy','divisions','apply','schedule','effects','competition'],
@@ -540,8 +542,20 @@ async function vDocs(){
   v.querySelectorAll('[data-f]').forEach(el => el.oninput = () => { f[el.dataset.f] = el.value; render(); });
   v.querySelectorAll('[data-ty]').forEach(b => b.onclick = () => b.dataset.ty === 'saved' ? savedDocs() : (f.type = b.dataset.ty, vDocs()));
   $('#dcopy').onclick = async () => { await navigator.clipboard.writeText($('#paper').innerText); toast('복사했습니다. 한글에 붙여 넣으세요'); };
-  $('#ddoc').onclick = () => { const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><style>body{font-family:'바탕';font-size:12pt;line-height:1.7}h3{text-align:center;font-size:17pt;border:2px solid #000;padding:8px}.team{text-align:right}h4{font-size:14pt;margin:14pt 0 4pt}p{margin:0}.i1{margin-left:12pt}.i2{margin-left:24pt}table{border-collapse:collapse;width:100%}th,td{border:1px solid #000;padding:4px;text-align:center;font-size:10.5pt}th{background:#e6e6e6}</style></head><body>${$('#paper').innerHTML}</body></html>`;
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿'+html],{type:'application/msword'})); a.download = `${f.year}. ${f.title||'초안'} ${DOC_TYPES[f.type]}.doc`; a.click(); };
+  // 한글(.hwpx) 내려받기 — 지금 고른 문서 종류(운영(안)·세부운영계획·결과보고)로 만듦 (hwpx-docs.js)
+  const hb = $('#dhwpx'), HB_LABEL = '한글(.hwpx) 내려받기';
+  window.HwpxDocs.hasTemplate(f.type).then(ok => { if (!$('#dhwpx') || hb !== $('#dhwpx')) return;
+    hb.disabled = !ok; hb.textContent = ok ? HB_LABEL : '한글(.hwpx) · 서식 파일 필요'; hb.title = ok ? '' : `${window.HwpxDocs.TEMPLATES[f.type]} 파일이 필요합니다`; });
+  hb.onclick = async () => {
+    hb.disabled = true; hb.textContent = '만드는 중…';
+    try {
+      const r = await window.HwpxDocs.build(f.type, f, docData(f, apps));
+      const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = r.name; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      if (r.est > 68) toast('2쪽을 넘을 수 있어요, 내용을 줄여 주세요'); else toast('한글 파일을 만들었습니다');
+    } catch (e) { console.error(e); toast('한글 파일을 만들지 못했습니다: ' + (e.message || '알 수 없는 오류')); }
+    finally { hb.disabled = false; hb.textContent = HB_LABEL; }
+  };
   $('#dsave').onclick = async () => { const row = { doc_type:f.type, title:`${f.year}. ${f.title} ${DOC_TYPES[f.type]}`, form:f, body:$('#paper').innerText, project_id:f.project_id?+f.project_id:null, updated_at:new Date().toISOString() };
     if (f._id){ await q(sb.from('admin_documents').update(row).eq('id', f._id)); const d = S.docs.find(x => x.id === f._id); Object.assign(d, row); }
     else { const [r] = await q(sb.from('admin_documents').insert(row).select('id,created_at,updated_at,project_id,doc_type,title')); S.docs.unshift(r); f._id = r.id; }
@@ -554,16 +568,6 @@ function savedDocs(){
   v.querySelectorAll('[data-o]').forEach(b => b.onclick = async () => { const [d] = await q(sb.from('admin_documents').select('*').eq('id', b.dataset.o)); S.docForm = { ...d.form, _id:d.id }; vDocs(); });
   v.querySelectorAll('[data-x]').forEach(b => b.onclick = async () => { if (!confirm('초안을 삭제할까요?')) return; await q(sb.from('admin_documents').delete().eq('id', b.dataset.x)); S.docs = S.docs.filter(x => x.id != b.dataset.x); savedDocs(); });
 }
-const lines = s => String(s||'').split('\n').map(x => x.trim()).filter(Boolean);
-const bullets = (s, mark='○', cls='i1') => lines(s).map(l => /^[-※▷]/.test(l) ? `<p class="i2">${esc(l)}</p>` : `<p class="${cls}">${mark} ${esc(l)}</p>`).join('');
-function schedTable(s){ const rs = lines(s).map(l => l.split('|').map(x => x.trim())); if (!rs.length) return '';
-  return `<table><tr><th>시 간</th><th>내 용</th><th>비 고</th></tr>${rs.map(r => `<tr><td>${esc(r[0])}</td><td style="text-align:left">${esc(r[1]||'')}</td><td>${esc(r[2]||'')}</td></tr>`).join('')}</table>`; }
-function budgetTable(pid, useSpent){
-  const bs = S.budget.filter(b => b.project_id == pid); if (!bs.length) return '<p class="i1">※ 연결된 사업의 예산 항목을 [예산] 화면에서 입력하면 표가 자동으로 채워집니다.</p>';
-  const tot = bs.reduce((s,b) => s + (+(useSpent?b.spent:b.planned)||0), 0);
-  return `<table><tr><th>구 분</th><th>항 목</th><th>산출 내역</th><th>금액(원)</th></tr>${bs.map(b => `<tr><td>${esc(b.category||'')}</td><td>${esc(b.item)}</td><td>${b.unit_price?`${won(b.unit_price)}원 × ${b.qty}`:esc(b.memo||'')}</td><td style="text-align:right">${won(useSpent?b.spent:b.planned)}</td></tr>`).join('')}
-    <tr><th colspan="3">합 계</th><th style="text-align:right">${won(tot)}</th></tr></table>`;
-}
 function statusTables(comp, apps){
   const as = apps.filter(a => a.competition === comp); if (!as.length) return '';
   const schools = {}; as.forEach(a => { const k = a.class_no||'(미기재)'; const s = schools[k] = schools[k] || {남:0,여:0,학생:0,교직원:0}; if (a.gender==='남'||a.gender==='여') s[a.gender]++; if (a.role==='교직원') s.교직원++; else s.학생++; });
@@ -574,34 +578,11 @@ function statusTables(comp, apps){
     <table><tr><th>순</th><th>학교명</th><th>남</th><th>여</th><th>학생</th><th>교직원</th><th>계</th></tr>${rows.map(([k,v],i) => `<tr><td>${i+1}</td><td>${esc(k)}</td><td>${v.남}</td><td>${v.여}</td><td>${v.학생}</td><td>${v.교직원}</td><td>${v.남+v.여}</td></tr>`).join('')}
     <tr><th colspan="2">계</th><th>${T('남')}</th><th>${T('여')}</th><th>${T('학생')}</th><th>${T('교직원')}</th><th>${T('남')+T('여')}</th></tr></table>`;
 }
+// 미리보기와 hwpx 가 같은 내용이 되도록 hwpx-docs.js 의 모델로 그림
+function docData(f, apps){ return { apps, budgetRows: S.budget.filter(b => b.project_id == f.project_id), today: new Date(), site: CONFIG.SITE, org: CONFIG.ORG, team: CONFIG.TEAM }; }
 function genDoc(f, apps){
-  const title = `${esc(f.year)}. ${esc(f.title||'○○○')}`; const when = `${kdate(f.date)||'2026. ○. ○.(○)'} ${esc(f.time||'')}`;
-  const tg = lines(f.targets);
-  const overview = `<p class="i1">○ 행사명: ${esc(f.title||'')}</p>${f.theme?`<p class="i1">○ 주제: ${esc(f.theme)}</p>`:''}<p class="i1">○ 일시: ${when}</p><p class="i1">○ 장소: ${esc(f.place||'')}</p>
-    <p class="i1">○ 대상: ${tg.length===1?esc(tg[0]):''}</p>${tg.length>1?tg.map(t => `<p class="i2">- ${esc(t)}</p>`).join(''):''}<p class="i1">○ 주최/주관: ${esc(f.host||CONFIG.ORG)}</p>`;
-  const head = suffix => `<h3>${title}<br>${suffix}</h3><div class="team">${CONFIG.ORG} ${CONFIG.TEAM}</div>`;
-  if (f.type === 'plan') return head('운영(안)') +
-    `<h4>Ⅰ 추진 근거</h4>${bullets(f.basis)}<h4>Ⅱ 추진 목적</h4>${bullets(f.purpose)}<h4>Ⅲ 추진 방침</h4>${bullets(f.policy)}
-     <h4>Ⅳ 운영 개요</h4>${overview}
-     <h4>Ⅴ 세부추진계획</h4><p class="i1">○ 참가 부문 및 제한</p>${lines(f.divisions).map(l => `<p class="i2">- ${esc(l)}</p>`).join('')}
-     <p class="i1">○ 참가 신청: ${esc(f.apply||'')}</p><p class="i2">- 방법: ${CONFIG.SITE} 누리집 온라인 신청</p>
-     <p class="i1">○ 세부 일정</p>${schedTable(f.schedule)}<p class="i1">※ 현장 여건에 따라 일정이 변경될 수 있음</p>
-     <h4>Ⅵ 예산 집행 계획</h4>${budgetTable(f.project_id,false)}<h4>Ⅶ 기대효과</h4>${bullets(f.effects)}`;
-  if (f.type === 'detail'){
-    const st = f.competition ? statusTables(f.competition, apps) : '';
-    return head('세부운영계획') +
-    `<p><b>1. 대회명:</b> ${title}</p><p><b>2. 대회일시:</b> ${when}</p><p><b>3. 대회장소:</b> ${esc(f.place||'')}</p><p><b>4. 주최/주관:</b> ${esc(f.host||CONFIG.ORG)}</p>
-     <p><b>5. 대회개요</b></p>${tg.map(t => `<p class="i1">- ${esc(t)}</p>`).join('')}
-     <p><b>6. 종별 및 참가 부문</b></p>${lines(f.divisions).map(l => `<p class="i1">- ${esc(l)}</p>`).join('')}
-     <p><b>7. 경기방법</b></p>${lines(f.method).map(l => `<p class="i1">- ${esc(l)}</p>`).join('')}
-     <p><b>8. 시상</b></p>${lines(f.awards).map(l => `<p class="i1">- ${esc(l)}</p>`).join('')}
-     <p><b>9. 세부 일정</b></p>${schedTable(f.schedule)}
-     <h4>□ 행정사항</h4>${bullets(f.admin)}${st?`<h4>□ 학교별 참가 현황</h4>${st}`:''}`;
-  }
-  const st = f.competition ? statusTables(f.competition, apps) : '';
-  return head('결과보고') +
-    `<h4>1. 개요</h4>${overview}<h4>2. 참가 현황</h4>${st || '<p class="i1">○ 참가현황 연동에서 대회를 선택하면 표가 채워집니다.</p>'}
-     <h4>3. 운영 결과</h4>${bullets(f.resultText)}<h4>4. 예산 집행 결과</h4>${budgetTable(f.project_id,true)}<h4>5. 성과 및 개선점</h4>${bullets(f.improve)}`;
+  try { return window.HwpxDocs.previewHtml(f.type, f, docData(f, apps), esc); }
+  catch(e){ return `<p class="i1">미리보기를 만들지 못했습니다: ${esc(e.message||e)}</p>`; }
 }
 
 /* ============ 대회 관리 ============ */
