@@ -202,6 +202,43 @@ a { color: inherit; }
   color: var(--clay);
 }
 
+/* 히어로 가운데 위 스톱워치 아이콘 (index.html) */
+.hero-stopwatch {
+  position: absolute;
+  top: 0;
+  left: 60%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  text-decoration: none;
+}
+.hero-stopwatch-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--clay);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.hero-stopwatch:hover .hero-stopwatch-icon,
+.hero-stopwatch:focus-visible .hero-stopwatch-icon {
+  background: var(--clay);
+  color: #fff;
+  transform: translateY(-3px) scale(1.04);
+}
+.hero-stopwatch-text {
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.55);
+}
+
 .bib {
   font-family: var(--font-mono);
   display: inline-block;
@@ -323,6 +360,26 @@ a { color: inherit; }
   .hero-qr-code img {
     width: 84px;
     height: 84px;
+  }
+  /* 휴대폰: 스톱워치는 QR카드 아래 가로 배치 */
+  .hero-stopwatch {
+    position: static;
+    order: 100;
+    transform: none;
+    flex-direction: row;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .hero-stopwatch-icon {
+    width: 52px;
+    height: 52px;
+  }
+  .hero-stopwatch-icon svg {
+    width: 30px;
+    height: 30px;
+  }
+  .hero-stopwatch-text {
+    font-size: 1rem;
   }
 }
 

@@ -13,7 +13,7 @@
 
 | 페이지 | 스크립트 | 역할 |
 |---|---|---|
-| `index.html` | — | 홈 (대회 소개, 일정, 종목). 히어로 오른쪽 위에 "트랙마라톤 축제 대회 결과" 바로가기 QR카드(`.hero-qr`, `qr-trackmarathon-results.svg` → `results.html?competition=트랙마라톤 축제`). 휴대폰(640px 이하)에서는 환영 문구 아래로 내려 가로 배치 |
+| `index.html` | — | 홈 (대회 소개, 일정, 종목). 히어로 오른쪽 위에 "트랙마라톤 축제 대회 결과" 바로가기 QR카드(`.hero-qr`, `qr-trackmarathon-results.svg` → `results.html?competition=트랙마라톤 축제`). 휴대폰(640px 이하)에서는 환영 문구 아래로 내려 가로 배치. 히어로 가운데 위에는 '스톱워치' 아이콘(`.hero-stopwatch`, 흰 원 + 글자)이 있고 누르면 claude.ai 스톱워치 페이지가 새 창으로 열림. 휴대폰에서는 QR카드 아래 가로 배치 |
 | `contest.html` | — | 대회 안내 |
 | `apply.html` | `apply.js` | 참가 신청 (개인 / 트랙마라톤 교사 일괄 엑셀 신청) → `applications`, `bulk_applications`, storage `bulk-uploads` |
 | `admin.html` | `admin.js` | 관리자 (GitHub OAuth 로그인, `ADMIN_EMAIL`만): 신청 관리·배번 등록, 대회 결과 관리(엑셀 업로드), 대회요강·학교체육 게시글 업로드 |
