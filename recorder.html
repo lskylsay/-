@@ -72,6 +72,25 @@
         </div>
       </div>
 
+      <!-- 여러 기록원이 모은 결과표를 붙여넣어 한꺼번에 기록 칸에 채우기 -->
+      <details id="recPaste" style="margin-top:16px; max-width:720px; border:1px solid var(--line); border-radius:6px; background:#fff; padding:10px 14px;">
+        <summary style="cursor:pointer; font-weight:700;">기록 한꺼번에 붙여넣기 (여러 기록원이 모은 결과)</summary>
+        <p style="margin:10px 0; color:var(--ink-soft); font-size:0.9rem;">
+          순위 · 이름/번호 · 기록 · 1위와 차이 표를 그대로 붙여넣으세요. <b>이름/번호 칸의 숫자를 배번</b>으로 보고,
+          기록은 <b>소수점 아래를 버리고 초 단위까지만</b> 위 표의 기록 칸에 채웁니다 (예: 12:34.99 → 12:34).
+          채운 뒤 맞는지 확인하고 <b>입력한 기록 전체 저장</b>을 눌러야 저장됩니다.
+        </p>
+        <div class="field" style="margin-bottom:10px;">
+          <label for="recPasteText">붙여넣을 기록</label>
+          <textarea id="recPasteText" rows="8" placeholder="순위&#9;이름/번호&#9;기록&#9;1위와 차이&#10;1&#9;2&#9;00:00.51&#9;-&#10;2&#9;3&#9;00:00.83&#9;+0.31"></textarea>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button type="button" class="btn btn-primary" id="recPasteApplyBtn">기록 칸에 채우기</button>
+          <button type="button" class="btn btn-outline" id="recPasteClearBtn">지우기</button>
+        </div>
+        <div id="recPasteResult" aria-live="polite" style="margin-top:10px; font-size:0.92rem;"></div>
+      </details>
+
       <div style="display:flex; gap:10px; align-items:center; margin:16px 0;">
         <button type="button" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);" id="recRefreshBtn">명단 새로고침</button>
         <button type="button" class="btn btn-primary" id="recSaveAllBtn">입력한 기록 전체 저장</button>
