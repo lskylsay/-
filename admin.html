@@ -176,18 +176,27 @@
           <p id="resAddStatus" class="form-status"></p>
         </div>
 
-        <p id="resultsCountLabel" class="sub" style="margin-bottom:12px;"></p>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+          <p id="resultsCountLabel" class="sub" style="margin:0;"></p>
+          <button type="button" class="btn btn-outline" id="resultsDeleteSelectedBtn" disabled>선택 삭제</button>
+          <p id="resultsDeleteStatus" class="form-status" style="margin:0;"></p>
+        </div>
         <div style="overflow-x:auto;">
           <table class="result-table" id="resultsTable">
             <thead>
               <tr>
                 <th>대회</th>
                 <th>종목/부문</th>
+                <th>기록</th>
                 <th>날짜</th>
                 <th>순위</th>
                 <th>이름</th>
                 <th>비고</th>
-                <th></th>
+                <th style="white-space:nowrap;">
+                  <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="checkbox" id="resultsSelectAll" aria-label="결과 전체 선택" style="accent-color:var(--clay);"> 전체선택
+                  </label>
+                </th>
               </tr>
             </thead>
             <tbody id="resultsTableBody"></tbody>

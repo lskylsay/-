@@ -471,35 +471,143 @@ const resultsUploadStatus = document.getElementById("resultsUploadStatus");
 
 resultsRefreshBtn.addEventListener("click", loadResultsAdmin);
 
+const resultsSelectAll = document.getElementById("resultsSelectAll");
+const resultsDeleteSelectedBtn = document.getElementById("resultsDeleteSelectedBtn");
+const resultsDeleteStatus = document.getElementById("resultsDeleteStatus");
+let currentResults = []; // 지금 표에 보이는 결과 (삭제 확인 문구용)
+
+// 이름 등 사용자가 입력한 글자를 HTML 로 해석하지 않고 그대로 보이게 함
+function escapeHtml(v) {
+  return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// "12:12" / "1:12:12" → 초 (정렬용). 형식이 아니면 null
+function recordToSeconds(t) {
+  const m = /^(\d+):(\d{1,2})(?::(\d{1,2}))?$/.exec(String(t ?? "").trim());
+  if (!m) return null;
+  return m[3] !== undefined ? +m[1] * 3600 + +m[2] * 60 + +m[3] : +m[1] * 60 + +m[2];
+}
+
+// 같은 대회·종목 안에서 순위(없으면 뒤로) → 기록 빠른 순 → 이름 순. 대회·종목 순서는 그대로 둠
+function sortWithinDivision(rows) {
+  const cmp = (a, b) => {
+    const ra = a.rank ?? Infinity, rb = b.rank ?? Infinity;
+    if (ra !== rb) return ra < rb ? -1 : 1;
+    const ta = recordToSeconds(a.record_time) ?? Infinity, tb = recordToSeconds(b.record_time) ?? Infinity;
+    if (ta !== tb) return ta < tb ? -1 : 1;
+    return String(a.name ?? "").localeCompare(String(b.name ?? ""), "ko");
+  };
+  const out = [];
+  let run = [];
+  const flush = () => { run.sort(cmp); out.push(...run); run = []; };
+  rows.forEach((r) => {
+    if (run.length && (run[0].competition !== r.competition || run[0].division !== r.division)) flush();
+    run.push(r);
+  });
+  flush();
+  return out;
+}
+
+// 선택된 결과를 삭제하고, 실제로 지워진 id 를 돌려줌.
+// RLS 로 삭제가 막히면 Supabase 는 오류 없이 0건만 지우므로 .select() 로 지워진 행을 확인함.
+async function deleteResultsByIds(ids) {
+  const deleted = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase.from("results").delete().in("id", ids.slice(i, i + 200)).select("id");
+    if (error) return { deleted, error };
+    deleted.push(...(data || []).map((r) => String(r.id)));
+  }
+  return { deleted, error: null };
+}
+
+function selectedResultIds() {
+  return Array.from(resultsTableBody.querySelectorAll(".res-select:checked")).map((c) => c.dataset.id);
+}
+
+function updateResultsSelection() {
+  const boxes = resultsTableBody.querySelectorAll(".res-select");
+  const n = selectedResultIds().length;
+  resultsSelectAll.disabled = boxes.length === 0;
+  resultsSelectAll.checked = boxes.length > 0 && n === boxes.length;
+  resultsSelectAll.indeterminate = n > 0 && n < boxes.length;
+  resultsDeleteSelectedBtn.disabled = n === 0;
+  resultsDeleteSelectedBtn.textContent = n > 0 ? `선택 삭제 (${n}건)` : "선택 삭제";
+}
+
+function showResultsDeleteStatus(text, ok) {
+  resultsDeleteStatus.textContent = text;
+  resultsDeleteStatus.className = "form-status " + (ok ? "success" : "error");
+}
+
+// 삭제 후 표를 다시 불러오고 결과 문구를 보여줌
+async function finishResultsDelete(requested, deleted, error) {
+  await loadResultsAdmin();
+  if (error) showResultsDeleteStatus(`삭제 실패: ${error.message}` + (deleted.length ? ` (${deleted.length}건은 삭제됨)` : ""), false);
+  else if (deleted.length < requested) showResultsDeleteStatus(`${requested}건 중 ${deleted.length}건만 삭제됐습니다. 삭제 권한(Supabase results 삭제 정책)을 확인해 주세요.`, false);
+  else showResultsDeleteStatus(`${deleted.length}건을 삭제했습니다.`, true);
+}
+
 function renderResultsTable(rows) {
+  currentResults = rows;
   resultsCountLabel.textContent = `총 ${rows.length}건`;
   resultsTableBody.innerHTML = rows
     .map(
       (r) => `
       <tr>
-        <td>${r.competition || ""}</td>
-        <td>${r.division || ""}</td>
-        <td>${r.date || ""}</td>
-        <td class="rank">${r.rank ?? ""}</td>
-        <td>${r.name || ""}</td>
-        <td>${r.note || ""}</td>
-        <td><button type="button" class="row-remove-btn" data-id="${r.id}" title="삭제">×</button></td>
+        <td>${escapeHtml(r.competition)}</td>
+        <td>${escapeHtml(r.division)}</td>
+        <td style="font-family:var(--font-mono); white-space:nowrap;">${escapeHtml(r.record_time)}</td>
+        <td>${escapeHtml(r.date)}</td>
+        <td class="rank">${escapeHtml(r.rank)}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td>${escapeHtml(r.note)}</td>
+        <td style="white-space:nowrap;">
+          <input type="checkbox" class="res-select" data-id="${escapeHtml(r.id)}" aria-label="${escapeHtml(r.name)} 결과 선택" style="accent-color:var(--clay);">
+          <button type="button" class="row-remove-btn" data-id="${escapeHtml(r.id)}" title="삭제">×</button>
+        </td>
       </tr>`
     )
     .join("");
 
+  resultsTableBody.querySelectorAll(".res-select").forEach((box) => box.addEventListener("change", updateResultsSelection));
+  updateResultsSelection();
+
   resultsTableBody.querySelectorAll(".row-remove-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       if (!confirm("이 결과를 삭제할까요?")) return;
-      const { error } = await supabase.from("results").delete().eq("id", btn.dataset.id);
-      if (error) {
-        alert("삭제 실패: " + error.message);
-        return;
-      }
-      loadResultsAdmin();
+      const { deleted, error } = await deleteResultsByIds([btn.dataset.id]);
+      await finishResultsDelete(1, deleted, error);
     });
   });
 }
+
+resultsSelectAll.addEventListener("change", () => {
+  resultsTableBody.querySelectorAll(".res-select").forEach((box) => { box.checked = resultsSelectAll.checked; });
+  updateResultsSelection();
+});
+
+// 선택한 결과 한꺼번에 삭제
+resultsDeleteSelectedBtn.addEventListener("click", async () => {
+  const ids = selectedResultIds();
+  if (ids.length === 0) return;
+
+  // 어떤 대회·종목이 지워지는지 확인 문구에 요약
+  const rowById = new Map(currentResults.map((r) => [String(r.id), r]));
+  const groups = new Map();
+  ids.forEach((id) => {
+    const r = rowById.get(id);
+    const key = r ? `${r.competition} · ${r.division}` : "(알 수 없음)";
+    groups.set(key, (groups.get(key) || 0) + 1);
+  });
+  const lines = Array.from(groups).slice(0, 8).map(([k, n]) => `• ${k}: ${n}건`);
+  if (groups.size > 8) lines.push(`• 그 밖의 ${groups.size - 8}개 종목…`);
+  if (!confirm(`선택한 결과 ${ids.length}건을 삭제할까요?\n\n${lines.join("\n")}\n\n삭제하면 되돌릴 수 없습니다.`)) return;
+
+  resultsDeleteSelectedBtn.disabled = true;
+  showResultsDeleteStatus("삭제 중…", true);
+  const { deleted, error } = await deleteResultsByIds(ids);
+  await finishResultsDelete(ids.length, deleted, error);
+});
 
 async function loadResultsAdmin() {
   const { data, error } = await supabase
@@ -515,7 +623,7 @@ async function loadResultsAdmin() {
   }
 
   resultsLoaded = true;
-  renderResultsTable(data || []);
+  renderResultsTable(sortWithinDivision(data || []));
 }
 
 // 직접 입력으로 한 건 추가
