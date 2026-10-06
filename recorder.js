@@ -425,6 +425,20 @@ const recPasteResult = document.getElementById("recPasteResult");
 // 기록: 12:34.56 / 1:02:03.4 / 12:34 (소수점은 있어도 되고 없어도 됨)
 const PASTE_TIME_RE = /(\d+):(\d{1,2})(?::(\d{1,2}))?(?:[.,]\d+)?/;
 
+// 이름/번호 칸 글자 → { bib } | { error }
+// 이름이 같이 적혀 있어도 번호(숫자)만 배번으로 뽑음: "홍길동 12", "12 홍길동", "홍길동(12)", "12번 홍길동", "#12" → 12
+function extractBib(text) {
+  // 번호라고 표시된 숫자가 있으면 그것을 우선: 14번 / #14 / No.14 / 번호 14
+  const tagged = /(\d+)\s*번|(?:#|\bno\.?|번호)\s*[:：]?\s*(\d+)/i.exec(text);
+  if (tagged) return { bib: parseInt(tagged[1] ?? tagged[2], 10) };
+
+  const runs = text.match(/\d+/g) || [];
+  if (runs.length === 0) return { error: "이름/번호 칸에서 배번 숫자를 찾지 못함" };
+  // 숫자가 여러 개인데 번호 표시도 없으면 엉뚱한 선수에게 들어갈 수 있어 추측하지 않음
+  if (runs.length > 1) return { error: "이름/번호 칸에 숫자가 여러 개라 어느 것이 배번인지 알 수 없음" };
+  return { bib: parseInt(runs[0], 10) };
+}
+
 // 한 줄 → { bib, record } | { header: true } | { error }
 function parsePastedLine(line) {
   const tm = PASTE_TIME_RE.exec(line);
@@ -433,19 +447,20 @@ function parsePastedLine(line) {
     return /순위|이름|번호|기록/.test(line) ? { header: true } : { error: "기록 시간을 찾지 못함" };
   }
 
-  // 기록 바로 앞 칸이 이름/번호. 탭으로 나뉜 표면 칸 단위로, 아니면 기록 앞 글자에서 순위(맨 앞 숫자)를 뺀 나머지
-  let nameCell = "";
+  // 기록 앞쪽 글자들(순위·이름·번호). 탭으로 나뉜 표면 칸 단위로, 아니면 공백 단위로 나눔
+  let before;
   if (line.includes("\t")) {
     const cells = line.split("\t").map((c) => c.trim());
     const ti = cells.findIndex((c) => PASTE_TIME_RE.test(c));
-    nameCell = ti > 0 ? cells[ti - 1] : "";
+    before = ti > 0 ? cells.slice(0, ti) : [];
   } else {
-    const tokens = line.slice(0, tm.index).trim().split(/\s+/).filter(Boolean);
-    if (tokens.length > 1 && /^\d+$/.test(tokens[0])) tokens.shift();
-    nameCell = tokens.join(" ");
+    before = line.slice(0, tm.index).trim().split(/\s+/).filter(Boolean);
   }
-  const bibMatch = /\d+/.exec(nameCell);
-  if (!bibMatch) return { error: "이름/번호 칸에서 배번 숫자를 찾지 못함" };
+  // 맨 앞이 순위(1, 2, 1위…)면 뺌. 앞쪽 글자가 그것뿐이면 배번일 수 있어 그대로 둠
+  if (before.length > 1 && /^\d+\s*[위등]?$/.test(before[0])) before.shift();
+
+  const found = extractBib(before.join(" "));
+  if (found.error) return { error: found.error };
 
   let h = 0, m, s;
   if (tm[3] !== undefined) {
@@ -455,7 +470,7 @@ function parsePastedLine(line) {
   }
   const total = h * 3600 + m * 60 + s; // 소수점 아래는 이미 버려진 상태
   return {
-    bib: parseInt(bibMatch[0], 10),
+    bib: found.bib,
     record: formatRecord(Math.floor(total / 3600), Math.floor((total % 3600) / 60), total % 60),
   };
 }
