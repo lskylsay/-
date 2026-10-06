@@ -42,8 +42,11 @@ button,input,select,textarea{font:inherit;color:inherit}
 .nav{display:flex;flex-direction:column;gap:2px}
 .side .who{margin-top:auto;font-size:12px;opacity:.8;padding:10px}
 .side .who button{all:unset;cursor:pointer;text-decoration:underline;margin-top:4px;display:block}
-main{padding:28px clamp(16px,3vw,40px) 90px;max-width:1240px;width:100%}
+main{padding:28px clamp(16px,3vw,40px) 90px;max-width:1240px;width:100%;min-width:0}  /* min-width:0 — 넓은 표가 화면 폭을 밀어내지 않고 .tw 안에서 가로 스크롤되게 */
 h1{font-size:26px;margin:0 0 4px;font-weight:700;letter-spacing:-.5px}
+.pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.pagehead h1{min-width:0}
+.pagehead .btn{flex:none;white-space:nowrap}
 .sub{color:var(--ink-2);margin:0 0 22px}
 h2{font-size:17px;margin:0 0 12px;font-weight:700}
 .grid{display:grid;gap:16px}
@@ -292,7 +295,8 @@ function renderShell(){
   document.querySelectorAll('.nav button').forEach(b => b.onclick = () => go(b.dataset.v));
   $('#lo').onclick = () => sb.auth.signOut();
 }
-function go(v){ S.view = v;
+function go(v, sel){ S.view = v;
+  if (v === 'projects') S.selProject = sel || null;   // 메뉴로 들어오면 항상 목록부터, 오늘 화면에서 사업을 눌렀을 때만 그 사업 상세
   document.querySelectorAll('.nav button').forEach(b => { if (b.dataset.v !== v) b.removeAttribute('aria-current'); else b.setAttribute('aria-current','page'); });
   ({home:vHome,projects:vProjects,calendar:vCalendar,docs:vDocs,comp:vComp,budget:vBudget})[v](); window.scrollTo(0,0); }
 
@@ -355,7 +359,7 @@ async function vHome(){
         <h2 style="margin-top:20px">예산 집행</h2>
         ${planned ? `<div class="stats"><div class="stat"><b>${Math.round(spent/planned*100)}%</b><span>전체 집행률</span></div><div class="stat"><b>${won(spent)}</b><span>집행액(원)</span></div><div class="stat"><b>${won(planned-spent)}</b><span>잔액(원)</span></div></div>` : '<p class="muted small">등록된 예산이 없습니다.</p>'}
       </section></div>`;
-  v.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { S.selProject = +b.dataset.p; go('projects'); });
+  v.querySelectorAll('[data-p]').forEach(b => b.onclick = () => go('projects', +b.dataset.p));
   $('#goP') && ($('#goP').onclick = () => go('projects'));
   $('#addT').onclick = () => taskDialog(null, vHome);
   $('#hl') && bindTasks($('#hl'), vHome);
@@ -369,18 +373,18 @@ const groupCount = (arr, fn) => arr.reduce((m,x) => (m[fn(x)] = (m[fn(x)]||0)+1,
 function vProjects(tab){
   tab = tab || (S.selProject ? 'detail' : 'list');
   const v = $('#view');
-  v.innerHTML = `<h1>사업·워크플로우</h1><p class="sub">사업을 등록하고 워크플로우를 적용하면 행사일 기준으로 할 일이 자동 생성됩니다.</p>
+  v.innerHTML = `<div class="pagehead"><h1>사업·워크플로우</h1><button class="btn pri" id="np">+ 새 사업</button></div>
+    <p class="sub">사업을 등록하고 워크플로우를 적용하면 행사일 기준으로 할 일이 자동 생성됩니다.</p>
     <div class="tabs" role="tablist"><button role="tab" data-t="list" aria-selected="${tab!=='wf'}">사업</button><button role="tab" data-t="wf" aria-selected="${tab==='wf'}">워크플로우 템플릿</button></div><div id="pv"></div>`;
   v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { if (b.dataset.t==='list') S.selProject = null; vProjects(b.dataset.t); });
+  $('#np').onclick = () => projDialog();   // 제목 줄에 두어 목록·상세·워크플로우 탭 어디서나 보임
   if (tab === 'wf') return wfView();
   if (tab === 'detail' && S.selProject) return projDetail(S.selProject);
   const pv = $('#pv');
-  pv.innerHTML = `<div class="row" style="margin-bottom:12px"><button class="btn pri" id="np">+ 새 사업</button></div>
-    ${S.projects.length ? `<div class="tw"><table><thead><tr><th>사업명</th><th>유형</th><th>일자</th><th>D-day</th><th>상태</th><th class="num">준비율</th><th class="num">예산(원)</th></tr></thead><tbody>
+  pv.innerHTML = `${S.projects.length ? `<div class="tw"><table><thead><tr><th>사업명</th><th>유형</th><th>일자</th><th>D-day</th><th>상태</th><th class="num">준비율</th><th class="num">예산(원)</th></tr></thead><tbody>
     ${S.projects.map(p => `<tr data-p="${p.id}" style="cursor:pointer"><td><b>${esc(p.name)}</b></td><td>${esc(p.kind||'')}</td><td>${kdate(p.event_date)}</td><td>${p.event_date?ddLabel(p.event_date):''}</td><td>${esc(p.status||'')}</td><td class="num">${progress(p.id)}%</td><td class="num">${won(S.budget.filter(b=>b.project_id===p.id).reduce((s,b)=>s+(+b.planned||0),0))}</td></tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">아직 등록된 사업이 없습니다. 첫 사업을 등록해 보세요.</div>'}`;
   pv.querySelectorAll('[data-p]').forEach(r => r.onclick = () => { S.selProject = +r.dataset.p; vProjects('detail'); });
-  $('#np').onclick = () => projDialog();
 }
 function projDialog(p){
   const isNew = !p; p = p || { name:'', kind:'대회', event_date:'', place:'', target:'', status:'준비', memo:'' };
@@ -418,7 +422,7 @@ function projDetail(id){
   const p = S.projects.find(x => x.id === id); if (!p){ S.selProject = null; return vProjects('list'); }
   const ts = S.tasks.filter(t => t.project_id === id), bs = S.budget.filter(b => b.project_id === id);
   const pl = bs.reduce((s,b)=>s+(+b.planned||0),0), sp = bs.reduce((s,b)=>s+(+b.spent||0),0);
-  $('#pv').innerHTML = `<div class="row" style="margin-bottom:14px"><button class="btn ghost" id="back">← 사업 목록</button></div>
+  $('#pv').innerHTML = `<div class="row" style="margin-bottom:14px"><button class="btn" id="back">← 사업 목록</button></div>
     <div class="grid g2"><section class="panel">
       <div class="row"><h2 style="margin:0">${esc(p.name)}</h2><span class="spacer"></span><button class="btn" id="ep">수정</button></div>
       <p class="muted small" style="margin:6px 0 12px">${esc(p.kind)} · ${kdate(p.event_date)||'일자 미정'} ${p.event_date?`(${ddLabel(p.event_date)})`:''} · ${esc(p.place||'장소 미정')} · ${esc(p.status)}</p>
