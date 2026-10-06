@@ -270,6 +270,12 @@ async function deleteResults(appIds) {
   return { deletedIds: (data || []).map((r) => r.applications_id), error: null };
 }
 
+// 저장 오류를 쉬운 말로 (권한 정책에 막힌 경우)
+function friendlyError(error) {
+  const msg = String((error && error.message) || error || "");
+  return /row-level security/i.test(msg) ? "저장 권한 오류가 났습니다. 관리자에게 알려 주세요." : msg;
+}
+
 const DELETE_BLOCKED_MSG = "삭제 권한이 없어 기록을 지우지 못했습니다. (Supabase results 테이블 삭제 정책 확인 필요)";
 
 function clearRowInputs(row, rankInput, noteInput) {
@@ -299,7 +305,7 @@ async function saveRow(idx) {
     const { deletedIds, error } = await deleteResults([row.applications_id]);
 
     if (error) {
-      recStatus.textContent = `${row.name} 기록 삭제 실패: ` + error.message;
+      recStatus.textContent = `${row.name} 기록 삭제 실패: ` + friendlyError(error);
       recStatus.className = "form-status error";
       return;
     }
@@ -334,7 +340,7 @@ async function saveRow(idx) {
     .select();
 
   if (error) {
-    recStatus.textContent = `${row.name} 저장 실패: ` + error.message;
+    recStatus.textContent = `${row.name} 저장 실패: ` + friendlyError(error);
     recStatus.className = "form-status error";
     return;
   }
@@ -391,14 +397,14 @@ recSaveAllBtn.addEventListener("click", async () => {
     }));
 
     const { error } = await supabase.from("results").upsert(payload, { onConflict: "applications_id" });
-    if (error) errors.push("일괄 저장 실패: " + error.message);
+    if (error) errors.push("일괄 저장 실패: " + friendlyError(error));
     else messages.push(`${rowsToSave.length}명 저장 완료`);
   }
 
   if (rowsToDelete.length > 0) {
     const { deletedIds, error } = await deleteResults(rowsToDelete.map(({ row }) => row.applications_id));
     if (error) {
-      errors.push("기록 삭제 실패: " + error.message);
+      errors.push("기록 삭제 실패: " + friendlyError(error));
     } else {
       const deleted = new Set(deletedIds);
       const blocked = rowsToDelete.length - deleted.size;
