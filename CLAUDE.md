@@ -16,7 +16,7 @@
 | `index.html` | — | 홈 (대회 소개, 일정, 종목). 히어로 오른쪽 위에 "트랙마라톤 축제 대회 결과" 바로가기 QR카드(`.hero-qr`, `qr-trackmarathon-results.svg` → `results.html?competition=트랙마라톤 축제`). 휴대폰(640px 이하)에서는 환영 문구 아래로 내려 가로 배치. 히어로 가운데 위에는 앱 아이콘 묶음 `.hero-apps`(스톱워치 → 대진표 순, 둘 다 `.hero-stopwatch` 구조: 흰 원 + 글자)가 있고 누르면 각각 claude.ai 스톱워치 / 충청북도 학교스포츠클럽 대진표 생성 페이지가 새 창으로 열림. 위치는 `.hero-apps`가 담당(묶음 가운데가 가로 60%). 휴대폰에서는 QR카드 아래에 두 아이콘이 가로로 나란히 |
 | `contest.html` | — | 대회 안내 |
 | `apply.html` | `apply.js` | 참가 신청 (개인 / 트랙마라톤 교사 일괄 엑셀 신청) → `applications`, `bulk_applications`, storage `bulk-uploads` |
-| `admin.html` | `admin.js` | 관리자 (GitHub OAuth 로그인, `ADMIN_EMAIL`만): 신청 관리·배번 등록, 대회 결과 관리(엑셀 업로드), 대회요강·학교체육 게시글 업로드 |
+| `admin.html` | `admin.js` | 관리자 (GitHub OAuth 로그인, `ADMIN_EMAIL`만): 신청 관리·배번 등록, 대회 결과 관리(엑셀 업로드; 결과 표에 기록 `record_time` 열이 있고, 맨 오른쪽 '전체선택' 체크 + '선택 삭제'로 한꺼번에 삭제 — 200건씩 나눠 지우고 실제 삭제된 행 수를 확인해 권한 문제로 0건 처리되면 알림), 대회요강·학교체육 게시글 업로드 |
 | `workroom.html` | (파일 안에 내장) + `hwpx-docs.js` | 관리자 업무실 (admin.html 탭 줄의 "업무실" 링크). 단독 페이지로 자체 CONFIG(같은 Supabase 프로젝트·관리자 이메일)와 supabase-js UMD 사용. 사업·워크플로우, 일정·할일, 공문 초안, 대회 관리, 예산, 기록원 접근 기간 → 테이블 `admin_projects`, `admin_tasks`, `admin_workflows`, `admin_budget`, `admin_documents`, `recorder_windows` (모두 관리자 전용 RLS). 사업·워크플로우 화면: '+ 새 사업'은 제목 줄 오른쪽에 두어 목록·상세·워크플로우 탭 어디서나 보임. 메뉴로 들어오면 항상 목록부터(`go('projects')`가 `S.selProject` 초기화), 오늘 화면에서 사업을 누르면 `go('projects', 사업id)`로 그 사업 상세 |
 | `recorder.html` | `recorder.js` + `script.js` | 경기기록원 (PIN 입장, 로그인 없이 anon 키로 동작). 탭: 기록 입력 / 대회 결과(실명 확인) |
 | `results.html` | `script.js` | 대회 결과 공개 조회 (RPC `get_public_results`) |
