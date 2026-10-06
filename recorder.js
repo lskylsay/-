@@ -246,6 +246,11 @@ function parseTimeInput(raw) {
     h = parseInt(digits.slice(0, -4), 10);
   }
 
+  return formatRecord(h, m, s);
+}
+
+// 시·분·초 → "12:12" / "1:12:12" (기록 칸·DB에 저장되는 형식)
+function formatRecord(h, m, s) {
   const mm = String(m).padStart(2, "0");
   const ss = String(s).padStart(2, "0");
   return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
@@ -407,6 +412,135 @@ recSaveAllBtn.addEventListener("click", async () => {
 
   recStatus.textContent = [...errors, ...messages].join(" / ") + ".";
   recStatus.className = errors.length > 0 ? "form-status error" : "form-status success";
+});
+
+/* ============ 기록 한꺼번에 붙여넣기 ============ */
+// 여러 기록원이 모은 결과표(순위 / 이름·번호 / 기록 / 1위와 차이)를 붙여넣으면
+// 이름/번호 칸의 숫자를 배번으로 보고, 기록은 소수점 아래를 버려 초 단위까지만 기록 칸에 채웁니다.
+// 저장은 하지 않습니다 — 확인 후 "입력한 기록 전체 저장"으로 저장합니다.
+
+const recPasteText = document.getElementById("recPasteText");
+const recPasteResult = document.getElementById("recPasteResult");
+
+// 기록: 12:34.56 / 1:02:03.4 / 12:34 (소수점은 있어도 되고 없어도 됨)
+const PASTE_TIME_RE = /(\d+):(\d{1,2})(?::(\d{1,2}))?(?:[.,]\d+)?/;
+
+// 한 줄 → { bib, record } | { header: true } | { error }
+function parsePastedLine(line) {
+  const tm = PASTE_TIME_RE.exec(line);
+  if (!tm) {
+    // "순위 이름/번호 기록 1위와 차이" 같은 제목 줄은 조용히 건너뜀
+    return /순위|이름|번호|기록/.test(line) ? { header: true } : { error: "기록 시간을 찾지 못함" };
+  }
+
+  // 기록 바로 앞 칸이 이름/번호. 탭으로 나뉜 표면 칸 단위로, 아니면 기록 앞 글자에서 순위(맨 앞 숫자)를 뺀 나머지
+  let nameCell = "";
+  if (line.includes("\t")) {
+    const cells = line.split("\t").map((c) => c.trim());
+    const ti = cells.findIndex((c) => PASTE_TIME_RE.test(c));
+    nameCell = ti > 0 ? cells[ti - 1] : "";
+  } else {
+    const tokens = line.slice(0, tm.index).trim().split(/\s+/).filter(Boolean);
+    if (tokens.length > 1 && /^\d+$/.test(tokens[0])) tokens.shift();
+    nameCell = tokens.join(" ");
+  }
+  const bibMatch = /\d+/.exec(nameCell);
+  if (!bibMatch) return { error: "이름/번호 칸에서 배번 숫자를 찾지 못함" };
+
+  let h = 0, m, s;
+  if (tm[3] !== undefined) {
+    h = parseInt(tm[1], 10); m = parseInt(tm[2], 10); s = parseInt(tm[3], 10);
+  } else {
+    m = parseInt(tm[1], 10); s = parseInt(tm[2], 10);
+  }
+  const total = h * 3600 + m * 60 + s; // 소수점 아래는 이미 버려진 상태
+  return {
+    bib: parseInt(bibMatch[0], 10),
+    record: formatRecord(Math.floor(total / 3600), Math.floor((total % 3600) / 60), total % 60),
+  };
+}
+
+function showPasteResult(lines) {
+  recPasteResult.replaceChildren(
+    ...lines.map(({ text, tone }) => {
+      const p = document.createElement("p");
+      p.style.margin = "0 0 4px";
+      p.style.color = tone === "ok" ? "var(--pine)" : tone === "warn" ? "var(--clay-dark)" : "var(--ink)";
+      p.textContent = text; // 붙여넣은 글자는 HTML이 아니라 글자 그대로 표시
+      return p;
+    })
+  );
+}
+
+function applyPastedRecords() {
+  if (!recCompetition.value || !recSport.value) {
+    showPasteResult([{ text: "먼저 위에서 대회와 종목/부문을 선택하세요.", tone: "warn" }]);
+    return;
+  }
+  if (!recPasteText.value.trim()) {
+    showPasteResult([{ text: "붙여넣은 내용이 없습니다.", tone: "warn" }]);
+    return;
+  }
+
+  const records = new Map(); // 배번 → 기록 (같은 배번이 또 나오면 첫 번째만)
+  const duplicates = [];
+  const skipped = [];
+  recPasteText.value.split(/\r?\n/).forEach((raw) => {
+    const line = raw.trim();
+    if (!line) return;
+    const parsed = parsePastedLine(line);
+    if (parsed.header) return;
+    if (parsed.error) {
+      skipped.push(`"${line.length > 40 ? line.slice(0, 40) + "…" : line}" — ${parsed.error}`);
+    } else if (records.has(parsed.bib)) {
+      duplicates.push(parsed.bib);
+    } else {
+      records.set(parsed.bib, parsed.record);
+    }
+  });
+
+  // 배번 검색으로 일부 행만 보이는 중이면 모든 행이 보이도록 검색을 풀고 다시 그림
+  if (bibFilter) {
+    bibFilter = "";
+    recBibSearch.value = "";
+    renderRecTable();
+  }
+
+  let filled = 0;
+  let overwritten = 0;
+  const missing = [];
+  records.forEach((record, bib) => {
+    const idx = currentRows.findIndex((r) => r.bib != null && Number(r.bib) === bib);
+    const input = idx >= 0 ? recTableBody.querySelector(`.rec-rank-input[data-idx="${idx}"]`) : null;
+    if (!input) {
+      missing.push(bib);
+      return;
+    }
+    const before = input.value.trim();
+    if (before && before !== record) overwritten++;
+    input.value = record;
+    input.style.background = "#FBF0EC"; // 방금 채운 칸 표시
+    filled++;
+  });
+
+  const lines = [];
+  lines.push(
+    filled > 0
+      ? { text: `${filled}명의 기록을 기록 칸에 채웠습니다. 맞는지 확인한 뒤 [입력한 기록 전체 저장]을 눌러 저장하세요.`, tone: "ok" }
+      : { text: "기록 칸에 채워진 기록이 없습니다.", tone: "warn" }
+  );
+  if (overwritten > 0) lines.push({ text: `이미 입력돼 있던 기록 ${overwritten}건은 붙여넣은 기록으로 바꿨습니다.`, tone: "warn" });
+  if (missing.length > 0) lines.push({ text: `이 종목 명단에 없는 배번: ${missing.join(", ")} — 종목/부문을 잘못 골랐는지 확인하세요.`, tone: "warn" });
+  if (duplicates.length > 0) lines.push({ text: `같은 배번이 여러 번 나와 첫 번째 기록만 썼습니다: ${Array.from(new Set(duplicates)).join(", ")}`, tone: "warn" });
+  skipped.slice(0, 5).forEach((s) => lines.push({ text: `읽지 못한 줄: ${s}`, tone: "warn" }));
+  if (skipped.length > 5) lines.push({ text: `…읽지 못한 줄이 ${skipped.length - 5}개 더 있습니다.`, tone: "warn" });
+  showPasteResult(lines);
+}
+
+document.getElementById("recPasteApplyBtn").addEventListener("click", applyPastedRecords);
+document.getElementById("recPasteClearBtn").addEventListener("click", () => {
+  recPasteText.value = "";
+  recPasteResult.replaceChildren();
 });
 
 recCompetition.addEventListener("change", loadRosterForCompetition);
