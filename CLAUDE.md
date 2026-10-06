@@ -17,7 +17,7 @@
 | `contest.html` | — | 대회 안내 |
 | `apply.html` | `apply.js` | 참가 신청 (개인 / 트랙마라톤 교사 일괄 엑셀 신청) → `applications`, `bulk_applications`, storage `bulk-uploads` |
 | `admin.html` | `admin.js` | 관리자 (GitHub OAuth 로그인, `ADMIN_EMAIL`만): 신청 관리·배번 등록, 대회 결과 관리(엑셀 업로드; 결과 표에 기록 `record_time` 열이 있고, 맨 오른쪽 '전체선택' 체크 + '선택 삭제'로 한꺼번에 삭제 — 200건씩 나눠 지우고 실제 삭제된 행 수를 확인해 권한 문제로 0건 처리되면 알림), 대회요강·학교체육 게시글 업로드 |
-| `workroom.html` | (파일 안에 내장) + `hwpx-docs.js` | 관리자 업무실 (admin.html 탭 줄의 "업무실" 링크). 단독 페이지로 자체 CONFIG(같은 Supabase 프로젝트·관리자 이메일)와 supabase-js UMD 사용. 사업·워크플로우, 일정·할일, 공문 초안, 대회 관리, 예산, 기록원 접근 기간 → 테이블 `admin_projects`, `admin_tasks`, `admin_workflows`, `admin_budget`, `admin_documents`, `recorder_windows` (모두 관리자 전용 RLS). 사업·워크플로우 화면: '+ 새 사업'은 제목 줄 오른쪽에 두어 목록·상세·워크플로우 탭 어디서나 보임. 메뉴로 들어오면 항상 목록부터(`go('projects')`가 `S.selProject` 초기화), 오늘 화면에서 사업을 누르면 `go('projects', 사업id)`로 그 사업 상세 |
+| `workroom.html` | (파일 안에 내장) + `hwpx-docs.js` | 관리자 업무실 (admin.html 탭 줄의 "업무실" 링크). 단독 페이지로 자체 CONFIG(같은 Supabase 프로젝트·관리자 이메일)와 supabase-js UMD 사용. 사업·워크플로우, 일정·할일, 공문 초안, 대회 관리, 예산 → 테이블 `admin_projects`, `admin_tasks`, `admin_workflows`, `admin_budget`, `admin_documents` (모두 관리자 전용 RLS). 대회 관리에는 "경기기록원 기록 입력: 항상 가능" 안내만 표시. 사업·워크플로우 화면: '+ 새 사업'은 제목 줄 오른쪽에 두어 목록·상세·워크플로우 탭 어디서나 보임. 메뉴로 들어오면 항상 목록부터(`go('projects')`가 `S.selProject` 초기화), 오늘 화면에서 사업을 누르면 `go('projects', 사업id)`로 그 사업 상세 |
 | `recorder.html` | `recorder.js` + `script.js` | 경기기록원 (PIN 입장, 로그인 없이 anon 키로 동작). 탭: 기록 입력 / 대회 결과(실명 확인) |
 | `results.html` | `script.js` | 대회 결과 공개 조회 (RPC `get_public_results`) |
 | `guidelines.html` | `guidelines.js` | 대회요강 게시판 (`guidelines`, storage `guideline-files`). `preview_path`(미리보기용 PDF)가 있으면 제목 클릭 시 화면 안 모달로 PDF 표시(원본 다운로드·닫기·Esc), 없으면 바로 다운로드 |
@@ -58,8 +58,7 @@
 - RPC: `get_public_results(comp)` — 결과 페이지용. applications ⟕ results, 반환 `application_id, competition, sport, bib_number, school, name, grade, rank, record_time, note` (배번순)
 - 권한은 **RLS 정책이 실제 보안**이며, 화면의 이메일 체크·PIN은 보조 장치일 뿐입니다.
   - 관리자 전용 작업: `authenticated` + `auth.jwt() ->> 'email' = 'dkjy0906@gmail.com'`
-  - `results`: SELECT 공개, DELETE는 관리자 전용(기록원 삭제를 쓰려면 별도 정책 필요). INSERT/UPDATE는 관리자 + **기록원 접근 기간 중에만** public 허용(`recorder_open(competition)`, 테이블 `recorder_windows`)
-  - 기록원 접근 기간은 `workroom.html` → 대회 관리 → "기록원 접근"에서 대회별로 열고 닫음. 기간이 닫혀 있으면 경기기록원 페이지(PIN 6680)에서 저장이 막힘 (RLS라 오류 없이 0건 처리될 수 있음)
+  - `results`: SELECT 공개, DELETE는 관리자 전용(기록원 삭제를 쓰려면 별도 정책 필요). INSERT/UPDATE는 관리자 + 기록원(public) 항상 허용 — `recorder_open()`이 항상 true. 기간 제한을 다시 쓰려면 함수 본문을 `recorder_windows` 기간 검사로 되돌리면 됨
 - **주의:** RLS로 UPDATE/DELETE가 막히면 Supabase는 오류 없이 0건만 처리합니다. 결과 확인이 필요하면 `.select()`로 처리된 행을 돌려받아 개수를 확인하세요.
 
 ### `results` 테이블 요점
@@ -68,7 +67,7 @@
 - 대회명 목록은 `recorder.html` select, `script.js`의 `KNOWN_COMPETITIONS`, `apply.js`의 `SPORT_OPTIONS`에 각각 하드코딩되어 있어 대회 추가 시 모두 수정해야 합니다.
 
 ## 경기기록원(`recorder.html` + `recorder.js`) 동작
-- 기록 저장은 업무실에서 연 "기록원 접근 기간" 안에서만 가능 (대회 당일 열고, 끝나면 닫기)
+- 기록 저장은 항상 가능 (PIN으로만 입장). 저장 오류에 'row-level security'가 나오면 "저장 권한 오류가 났습니다. 관리자에게 알려 주세요."로 표시(`friendlyError`)
 - PIN(6680) 입장 후 맨 위 탭 2개(`filter-btn`): "기록 입력" / "대회 결과 (실명 확인)"
 - "대회 결과 (실명 확인)" 탭은 results.html과 같은 마크업(검색칸·대회/종목 버튼·표·`#recordOverlay`)에 `script.js`를 그대로 불러옴. 그 앞에 `window.RESULTS_SHOW_FULL_NAMES = true`를 두어 표·카드 모두 실명 표시. 탭을 열 때마다 `results:reload` 이벤트로 다시 불러와 방금 입력한 기록 반영
 - 대회 선택 → RPC로 명단 로드 → 종목 선택 → 기존 `results`와 `applications_id`로 매칭해 배번순 표시

@@ -607,7 +607,7 @@ async function vComp(tab='list'){
       <div class="stat"><b>${Object.entries(gens).map(([k,n])=>n).join('·')}</b><span>${Object.keys(gens).join('·')}</span></div></div>
     ${dup.length ? `<div class="panel" style="border-color:var(--warn);margin-bottom:14px"><b style="color:var(--warn)">배번 중복 ${dup.length}건</b> <span class="small">${dup.slice(0,20).join(', ')}${dup.length>20?' …':''}</span></div>` : ''}
     ${unsynced ? `<div class="panel" style="margin-bottom:14px"><div class="row"><span class="small">신청서에 적힌 배번 ${unsynced}건이 배번 칸(bib_number)에 아직 저장되지 않았습니다. 기록 연동 전에 저장해 두면 좋습니다.</span><span class="spacer"></span><button class="btn pri" id="sync">배번 저장</button></div></div>` : ''}
-    <section class="panel" id="rw" style="margin-bottom:14px"><span class="small muted">기록원 접근 상태 확인 중…</span></section>
+    <p class="small muted" style="margin:0 0 14px">경기기록원 기록 입력: 항상 가능 (기록원 페이지 비밀번호로만 입장)</p>
     <div class="tabs" role="tablist"><button role="tab" data-ct="list" aria-selected="${tab==='list'}">참가자 명단</button><button role="tab" data-ct="school" aria-selected="${tab==='school'}">학교별 현황</button><button role="tab" data-ct="res" aria-selected="${tab==='res'}">기록·결과</button></div><div id="cv"></div>`;
   $('#cs').onchange = e => { S.compSel = e.target.value; vComp(tab); };
   v.querySelectorAll('[data-ct]').forEach(b => b.onclick = () => vComp(b.dataset.ct));
@@ -615,7 +615,6 @@ async function vComp(tab='list'){
   $('#sync') && ($('#sync').onclick = async e => { e.target.disabled = true; const todo = as.filter(a => a.bib_number == null && a.bibText != null);
     for (let i=0;i<todo.length;i+=20){ await Promise.all(todo.slice(i,i+20).map(a => q(sb.from('applications').update({bib_number:a.bibText}).eq('id', a.id)))); e.target.textContent = `${Math.min(i+20,todo.length)}/${todo.length}`; }
     toast('배번을 저장했습니다'); vComp(tab); });
-  recorderPanel(tab);
   const cv = $('#cv');
   if (tab === 'list'){
     cv.innerHTML = `<div class="row" style="margin-bottom:10px"><input type="text" id="sq" placeholder="이름·학교·배번 검색" style="flex:1;min-width:180px"><select id="sf"><option value="">전체 부문</option>${Object.keys(sports).map(s => `<option>${esc(s)}</option>`).join('')}</select></div><div class="tw" style="max-height:60vh"><table><thead><tr><th class="num">배번</th><th>이름</th><th>학교</th><th>성별</th><th>구분</th><th>부문</th><th>색·문</th><th>신청일</th></tr></thead><tbody id="tb"></tbody></table></div><p class="small muted" id="cnt"></p>`;
@@ -641,35 +640,6 @@ async function vComp(tab='list'){
       toast('기록을 추가했습니다'); vComp('res'); };
     $('#rcsv') && ($('#rcsv').onclick = () => csvDownload(`${S.compSel}_결과.csv`, [['부문','순위','이름','기록','비고'], ...res.map(r => [r.division,r.rank,r.name,r.record_time,r.note])]));
   }
-}
-
-/* ============ 기록원 접근 기간 ============ */
-const toLocalInput = d => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0,16); };
-async function recorderPanel(tab){
-  const box = $('#rw'); if (!box) return;
-  const [w] = await q(sb.from('recorder_windows').select('*').eq('competition', S.compSel));
-  const now = new Date(); const open = w && new Date(w.opens_at) <= now && now <= new Date(w.closes_at);
-  const fmt = d => new Date(d).toLocaleString('ko-KR',{month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit'});
-  const p = S.projects.find(x => x.event_date && (x.name.includes(S.compSel) || S.compSel.includes(x.name.replace(/^\d{4}\.\s*/,''))));
-  const day = p?.event_date || TODAY();
-  const defOpen = w ? toLocalInput(w.opens_at) : `${day}T07:00`, defClose = w ? toLocalInput(w.closes_at) : `${day}T18:00`;
-  box.innerHTML = `<div class="row"><h2 style="margin:0">기록원 접근</h2>
-      <span class="tag ${open?'today':''}">${open ? '열림' : w && now < new Date(w.opens_at) ? '예약됨' : '닫힘'}</span>
-      <span class="small muted">${w ? `${fmt(w.opens_at)} ~ ${fmt(w.closes_at)}` : '설정된 기간 없음'}</span></div>
-    <p class="small muted" style="margin:6px 0 10px">이 기간에만 로그인 없이 기록을 입력·수정할 수 있습니다. 기간이 끝나면 자동으로 닫힙니다.</p>
-    <div class="row"><label class="f">시작<input type="datetime-local" id="wo" value="${defOpen}"></label>
-      <label class="f">종료<input type="datetime-local" id="wc" value="${defClose}"></label>
-      <button class="btn pri" id="wsv" style="align-self:flex-end">기간 저장</button>
-      ${open ? '<button class="btn danger" id="wx" style="align-self:flex-end">지금 닫기</button>' : ''}</div>`;
-  $('#wsv').onclick = async () => {
-    const o = new Date($('#wo').value), c = new Date($('#wc').value);
-    if (isNaN(o) || isNaN(c) || c <= o) return toast('종료 시각은 시작 시각보다 뒤여야 합니다');
-    if ((c - o) > 3 * 864e5 && !confirm('3일이 넘는 기간입니다. 이대로 열어 둘까요?')) return;
-    await q(sb.from('recorder_windows').upsert({ competition:S.compSel, opens_at:o.toISOString(), closes_at:c.toISOString() }, { onConflict:'competition' }));
-    toast('기록원 접근 기간을 저장했습니다'); recorderPanel(tab); };
-  $('#wx') && ($('#wx').onclick = async () => {
-    await q(sb.from('recorder_windows').update({ closes_at:new Date().toISOString() }).eq('competition', S.compSel));
-    toast('기록원 접근을 닫았습니다'); recorderPanel(tab); });
 }
 
 /* ============ 예산 ============ */
