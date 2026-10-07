@@ -356,6 +356,20 @@ async function saveRow(idx) {
 }
 
 recSaveAllBtn.addEventListener("click", async () => {
+  // 붙여넣기 상자에 아직 채우지 않은(또는 채운 뒤 바뀐) 내용이 있으면 먼저 기록 칸에 채운 뒤 이어서 저장
+  // 이미 채운 내용과 같으면 다시 채우지 않음 — 채운 뒤 표에서 직접 고친 값을 덮어쓰지 않기 위해
+  const pastedFromBox = recPasteText.value.trim() !== "";
+  if (pastedFromBox && pasteKey() !== lastAppliedPaste) {
+    const filled = applyPastedRecords();
+    if (filled === 0) {
+      const msg = "붙여넣은 기록을 기록 칸에 채우지 못했습니다. 대회·종목/부문 선택과 배번을 확인하세요.";
+      recPasteResult.prepend(pasteResultLine({ text: msg, tone: "error" }));
+      recStatus.textContent = msg;
+      recStatus.className = "form-status error";
+      return;
+    }
+  }
+
   const rowsToSave = [];
   const rowsToDelete = [];
 
@@ -374,7 +388,7 @@ recSaveAllBtn.addEventListener("click", async () => {
   });
 
   if (rowsToSave.length === 0 && rowsToDelete.length === 0) {
-    recStatus.textContent = "저장하거나 삭제할 기록이 없습니다.";
+    recStatus.textContent = "기록 칸이 비어 있습니다. 기록을 입력하거나, 붙여넣기 후 [기록 칸에 채우기]를 누르세요.";
     recStatus.className = "form-status";
     return;
   }
@@ -413,20 +427,34 @@ recSaveAllBtn.addEventListener("click", async () => {
     }
   }
 
+  // 저장에 실패한 게 하나라도 있으면 명단을 다시 불러오지 않음 — 입력한 기록을 지우지 않고 그대로 둠
+  // 모두 성공했을 때만 다시 불러와 저장된 값으로 표를 새로 그림 (분홍색 표시도 이때 원래 색으로 돌아감)
   // 명단을 다시 불러오면 상태 문구가 초기화되므로, 다시 불러온 뒤 결과를 표시
-  await loadRowsForSport();
+  if (errors.length === 0) {
+    await loadRowsForSport();
+    if (rowsToSave.length > 0 && (pastedFromBox || recPasteResult.childElementCount > 0)) {
+      showPasteResult([{ text: `${rowsToSave.length}명 저장 완료`, tone: "ok" }]);
+    }
+  }
 
-  recStatus.textContent = [...errors, ...messages].join(" / ") + ".";
+  recStatus.textContent = [...errors, ...messages].join(" / ").replace(/\.?$/, ".");
   recStatus.className = errors.length > 0 ? "form-status error" : "form-status success";
 });
 
 /* ============ 기록 한꺼번에 붙여넣기 ============ */
 // 여러 기록원이 모은 결과표(순위 / 이름·번호 / 기록 / 1위와 차이)를 붙여넣으면
 // 이름/번호 칸의 숫자를 배번으로 보고, 기록은 소수점 아래를 버려 초 단위까지만 기록 칸에 채웁니다.
-// 저장은 하지 않습니다 — 확인 후 "입력한 기록 전체 저장"으로 저장합니다.
+// [기록 칸에 채우기]는 저장하지 않습니다 — 확인 후 "입력한 기록 전체 저장"으로 저장합니다.
+// [기록 칸에 채우기]를 누르지 않고 바로 "입력한 기록 전체 저장"을 눌러도 먼저 채운 뒤 저장합니다.
 
 const recPasteText = document.getElementById("recPasteText");
 const recPasteResult = document.getElementById("recPasteResult");
+
+// 마지막으로 기록 칸에 채운 붙여넣기 내용 (대회·종목/부문 포함). 같은 내용이면 저장할 때 다시 채우지 않음
+let lastAppliedPaste = null;
+function pasteKey() {
+  return [recCompetition.value, recSport.value, recPasteText.value.trim()].join("\n");
+}
 
 // 기록: 12:34.56 / 1:02:03.4 / 12:34 (소수점은 있어도 되고 없어도 됨)
 const PASTE_TIME_RE = /(\d+):(\d{1,2})(?::(\d{1,2}))?(?:[.,]\d+)?/;
@@ -481,26 +509,29 @@ function parsePastedLine(line) {
   };
 }
 
-function showPasteResult(lines) {
-  recPasteResult.replaceChildren(
-    ...lines.map(({ text, tone }) => {
-      const p = document.createElement("p");
-      p.style.margin = "0 0 4px";
-      p.style.color = tone === "ok" ? "var(--pine)" : tone === "warn" ? "var(--clay-dark)" : "var(--ink)";
-      p.textContent = text; // 붙여넣은 글자는 HTML이 아니라 글자 그대로 표시
-      return p;
-    })
-  );
+function pasteResultLine({ text, tone }) {
+  const p = document.createElement("p");
+  p.style.margin = "0 0 4px";
+  p.style.color =
+    tone === "ok" ? "var(--pine)" : tone === "warn" ? "var(--clay-dark)" : tone === "error" ? "#C62828" : "var(--ink)";
+  if (tone === "error") p.style.fontWeight = "700";
+  p.textContent = text; // 붙여넣은 글자는 HTML이 아니라 글자 그대로 표시
+  return p;
 }
 
+function showPasteResult(lines) {
+  recPasteResult.replaceChildren(...lines.map(pasteResultLine));
+}
+
+// 붙여넣은 기록을 기록 칸에 채우고, 채운 사람 수를 돌려줌
 function applyPastedRecords() {
   if (!recCompetition.value || !recSport.value) {
     showPasteResult([{ text: "먼저 위에서 대회와 종목/부문을 선택하세요.", tone: "warn" }]);
-    return;
+    return 0;
   }
   if (!recPasteText.value.trim()) {
     showPasteResult([{ text: "붙여넣은 내용이 없습니다.", tone: "warn" }]);
-    return;
+    return 0;
   }
 
   const records = new Map(); // 배번 → 기록 (같은 배번이 또 나오면 첫 번째만)
@@ -556,11 +587,14 @@ function applyPastedRecords() {
   skipped.slice(0, 5).forEach((s) => lines.push({ text: `읽지 못한 줄: ${s}`, tone: "warn" }));
   if (skipped.length > 5) lines.push({ text: `…읽지 못한 줄이 ${skipped.length - 5}개 더 있습니다.`, tone: "warn" });
   showPasteResult(lines);
+  if (filled > 0) lastAppliedPaste = pasteKey();
+  return filled;
 }
 
 document.getElementById("recPasteApplyBtn").addEventListener("click", applyPastedRecords);
 document.getElementById("recPasteClearBtn").addEventListener("click", () => {
   recPasteText.value = "";
+  lastAppliedPaste = null;
   recPasteResult.replaceChildren();
 });
 
