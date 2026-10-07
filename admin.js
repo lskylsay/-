@@ -499,13 +499,15 @@ async function attachApplicationInfo(rows) {
   const ids = Array.from(new Set(rows.map((r) => r.applications_id).filter((v) => v != null && v !== "")));
   const info = new Map();
   for (let i = 0; i < ids.length; i += 200) {
-    const { data, error } = await supabase.from("applications").select("id, bib_number, class_no").in("id", ids.slice(i, i + 200));
+    const { data, error } = await supabase.from("applications").select("id, bib_number, class_no, members").in("id", ids.slice(i, i + 200));
     if (error) throw error;
     (data || []).forEach((a) => info.set(String(a.id), a));
   }
   return rows.map((r) => {
     const a = info.get(String(r.applications_id));
-    const bib = a && a.bib_number != null && a.bib_number !== "" ? a.bib_number : null;
+    // 배번 칸이 비어 있으면 신청 시 적힌 'members' 글자("… · 배번 287(핑크) · …")에서 읽음 ('배번색 노랑'은 번호가 아니므로 제외)
+    const fromMembers = a && /배번\s*(\d+)/.exec(a.members || "");
+    const bib = a && a.bib_number != null && a.bib_number !== "" ? a.bib_number : fromMembers ? Number(fromMembers[1]) : null;
     return { ...r, bib, school: (a && a.class_no) || "" };
   });
 }
