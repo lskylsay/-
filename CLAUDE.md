@@ -80,8 +80,9 @@
 
 ## 대회 결과(`results.html` + `script.js`) 동작
 - 대회 버튼 → `get_public_results` 로 참가자 전체 로드 → 종목(`sport`) 버튼 → 배번순 표 (배번/학교/이름/기록/비고, 기록 없으면 `-`)
-- 이름은 표와 기념촬영 카드 모두 `displayName` → `maskName`으로 가운데 글자를 O로 가림 (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남OO수). 검색은 실명으로 동작
-  - `script.js`보다 먼저 `window.RESULTS_SHOW_FULL_NAMES = true`를 두면 표·카드 모두 실명 (경기기록원 결과 탭에서 사용)
+- 이름은 표와 기념촬영 카드 모두 실명 표시 (`displayName`). 검색도 실명으로 동작
+  - `script.js` 위쪽 `const MASK_PUBLIC_NAMES = false;`를 `true`로 바꾸면 `maskName`으로 가운데 글자를 O로 가림 (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남OO수)
+  - `script.js`보다 먼저 `window.RESULTS_SHOW_FULL_NAMES = true`를 두면 가림 설정과 관계없이 실명 (경기기록원 결과 탭에서 사용)
   - 이름 가림은 화면 표시만의 처리이며, `get_public_results`는 실명을 그대로 돌려줌
 - window에 `results:reload` 이벤트를 보내면 보고 있던 종목을 유지한 채 다시 불러옴
 - `?competition=대회명` 쿼리로 대회 미리 선택 (`contest.html`의 "결과보기" 링크가 사용)
