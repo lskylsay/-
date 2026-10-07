@@ -1,11 +1,13 @@
 // 결과 페이지 렌더링 — Supabase RPC get_public_results(comp)로 대회별 참가자 전체와 기록을 읽어
 // 종목(sport)별로 배번순 표를 그립니다. 기록이 없는 참가자도 함께 표시됩니다.
 // 배번·이름을 누르면 기념촬영용 전체화면 기록 카드가 열립니다.
-// - 이름은 표와 카드 모두 가려서 표시 (홍길동 → 홍O동). 검색은 실명으로 동작
-// - 이 스크립트보다 먼저 window.RESULTS_SHOW_FULL_NAMES = true 를 두면 실명 표시 (경기기록원 결과 탭)
+// - 이름은 표와 카드 모두 실명 표시. MASK_PUBLIC_NAMES 를 true 로 바꾸면 가운데 글자를 가림 (홍길동 → 홍O동). 검색은 실명으로 동작
+// - 이 스크립트보다 먼저 window.RESULTS_SHOW_FULL_NAMES = true 를 두면 가림 설정과 관계없이 실명 표시 (경기기록원 결과 탭)
 // - window에 "results:reload" 이벤트를 보내면 보고 있던 종목을 유지한 채 결과를 다시 불러옴
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const MASK_PUBLIC_NAMES = false; // true로 바꾸면 공개 페이지에서 이름 가운데 글자를 O로 가림
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
@@ -47,7 +49,7 @@ const COMPETITION_DISPLAY_NAMES = {
   // 예) "충북교육감기 육상대회": "2026. 충북교육감기 육상대회",
 };
 
-// 공개 화면의 이름은 개인정보 보호를 위해 첫·마지막 글자만 남기고 가운데를 O로 가림
+// 이름의 첫·마지막 글자만 남기고 가운데를 O로 가림 (MASK_PUBLIC_NAMES 가 true 일 때 공개 화면에서 사용)
 // (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남OO수). 이름 중간의 띄어쓰기는 그대로 둠
 function maskName(name) {
   const chars = Array.from(String(name ?? "").trim().replace(/\s+/g, " "));
@@ -57,9 +59,9 @@ function maskName(name) {
   return chars.map((c, i) => (i === 0 || i === last || c === " " ? c : "O")).join("");
 }
 
-// 화면에 보여줄 이름: 기본은 가림, RESULTS_SHOW_FULL_NAMES === true 이면 실명
+// 화면에 보여줄 이름: 기본은 실명. MASK_PUBLIC_NAMES 가 true 이고 RESULTS_SHOW_FULL_NAMES 가 아니면 가림
 function displayName(name) {
-  if (window.RESULTS_SHOW_FULL_NAMES === true) return String(name ?? "").trim();
+  if (!MASK_PUBLIC_NAMES || window.RESULTS_SHOW_FULL_NAMES === true) return String(name ?? "").trim();
   return maskName(name);
 }
 
