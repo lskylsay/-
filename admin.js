@@ -481,31 +481,33 @@ function escapeHtml(v) {
   return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-// "12:12" / "1:12:12" → 초 (정렬용). 형식이 아니면 null
-function recordToSeconds(t) {
-  const m = /^(\d+):(\d{1,2})(?::(\d{1,2}))?$/.exec(String(t ?? "").trim());
-  if (!m) return null;
-  return m[3] !== undefined ? +m[1] * 3600 + +m[2] * 60 + +m[3] : +m[1] * 60 + +m[2];
+// 대회 → 종목/부문 → 배번 오름차순 (배번 없는 행은 같은 종목 맨 뒤, 그다음 이름 순)
+function sortResults(rows) {
+  const ko = (a, b) => String(a ?? "").localeCompare(String(b ?? ""), "ko");
+  const bn = (r) => (r.bib == null || r.bib === "" || isNaN(Number(r.bib)) ? Infinity : Number(r.bib));
+  return rows.slice().sort((a, b) => {
+    const c = ko(a.competition, b.competition) || ko(a.division, b.division);
+    if (c) return c;
+    const ba = bn(a), bb = bn(b);
+    if (ba !== bb) return ba < bb ? -1 : 1;
+    return ko(a.name, b.name);
+  });
 }
 
-// 같은 대회·종목 안에서 순위(없으면 뒤로) → 기록 빠른 순 → 이름 순. 대회·종목 순서는 그대로 둠
-function sortWithinDivision(rows) {
-  const cmp = (a, b) => {
-    const ra = a.rank ?? Infinity, rb = b.rank ?? Infinity;
-    if (ra !== rb) return ra < rb ? -1 : 1;
-    const ta = recordToSeconds(a.record_time) ?? Infinity, tb = recordToSeconds(b.record_time) ?? Infinity;
-    if (ta !== tb) return ta < tb ? -1 : 1;
-    return String(a.name ?? "").localeCompare(String(b.name ?? ""), "ko");
-  };
-  const out = [];
-  let run = [];
-  const flush = () => { run.sort(cmp); out.push(...run); run = []; };
-  rows.forEach((r) => {
-    if (run.length && (run[0].competition !== r.competition || run[0].division !== r.division)) flush();
-    run.push(r);
+// 결과 행의 applications_id 로 신청자의 배번·학교를 한꺼번에 불러와 bib·school 로 붙임
+async function attachApplicationInfo(rows) {
+  const ids = Array.from(new Set(rows.map((r) => r.applications_id).filter((v) => v != null && v !== "")));
+  const info = new Map();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase.from("applications").select("id, bib_number, class_no").in("id", ids.slice(i, i + 200));
+    if (error) throw error;
+    (data || []).forEach((a) => info.set(String(a.id), a));
+  }
+  return rows.map((r) => {
+    const a = info.get(String(r.applications_id));
+    const bib = a && a.bib_number != null && a.bib_number !== "" ? a.bib_number : null;
+    return { ...r, bib, school: (a && a.class_no) || "" };
   });
-  flush();
-  return out;
 }
 
 // 선택된 결과를 삭제하고, 실제로 지워진 id 를 돌려줌.
@@ -532,6 +534,11 @@ function updateResultsSelection() {
   resultsSelectAll.indeterminate = n > 0 && n < boxes.length;
   resultsDeleteSelectedBtn.disabled = n === 0;
   resultsDeleteSelectedBtn.textContent = n > 0 ? `선택 삭제 (${n}건)` : "선택 삭제";
+  // 체크가 생기면 내려받기 범위를 '체크한 기록만'으로, 체크가 없어지면 '대회 전체'로
+  if (n > 0 && lastSelectedCount === 0) exportScope.value = "selected";
+  else if (n === 0 && exportScope.value === "selected") exportScope.value = "all";
+  lastSelectedCount = n;
+  resultsSelectedLabel.textContent = n > 0 ? `${n}건 선택됨` : "";
 }
 
 function showResultsDeleteStatus(text, ok) {
@@ -556,10 +563,12 @@ function renderResultsTable(rows) {
       <tr>
         <td>${escapeHtml(r.competition)}</td>
         <td>${escapeHtml(r.division)}</td>
+        <td style="white-space:nowrap;">${r.bib == null ? "-" : escapeHtml(r.bib)}</td>
+        <td>${escapeHtml(r.school)}</td>
+        <td>${escapeHtml(r.name)}</td>
         <td style="font-family:var(--font-mono); white-space:nowrap;">${escapeHtml(r.record_time)}</td>
         <td>${escapeHtml(r.date)}</td>
         <td class="rank">${escapeHtml(r.rank)}</td>
-        <td>${escapeHtml(r.name)}</td>
         <td>${escapeHtml(r.note)}</td>
         <td style="white-space:nowrap;">
           <input type="checkbox" class="res-select" data-id="${escapeHtml(r.id)}" aria-label="${escapeHtml(r.name)} 결과 선택" style="accent-color:var(--clay);">
@@ -570,6 +579,7 @@ function renderResultsTable(rows) {
     .join("");
 
   resultsTableBody.querySelectorAll(".res-select").forEach((box) => box.addEventListener("change", updateResultsSelection));
+  fillExportScope(rows);
   updateResultsSelection();
 
   resultsTableBody.querySelectorAll(".row-remove-btn").forEach((btn) => {
@@ -609,21 +619,154 @@ resultsDeleteSelectedBtn.addEventListener("click", async () => {
   await finishResultsDelete(ids.length, deleted, error);
 });
 
+/* ---- 결과 내려받기 (엑셀 / 한글) ---- */
+const exportScope = document.getElementById("resultsExportScope");
+const resultsSelectedLabel = document.getElementById("resultsSelectedLabel");
+const resultsExportStatus = document.getElementById("resultsExportStatus");
+let lastSelectedCount = 0;
+
+// 범위 선택 칸: 대회 전체 + 대회별 + 체크한 기록만
+function fillExportScope(rows) {
+  const prev = exportScope.value;
+  const comps = Array.from(new Set(rows.map((r) => r.competition).filter(Boolean)));
+  exportScope.innerHTML =
+    `<option value="all">대회 전체</option>` +
+    comps.map((c) => `<option value="comp:${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("") +
+    `<option value="selected">체크한 기록만</option>`;
+  exportScope.value = Array.from(exportScope.options).some((o) => o.value === prev) ? prev : "all";
+}
+
+function showExportStatus(text, ok) {
+  resultsExportStatus.textContent = text;
+  resultsExportStatus.className = "form-status " + (ok ? "success" : "error");
+}
+
+// 고른 범위의 결과(표와 같은 순서)와 파일 이름에 쓸 말
+function exportSelection() {
+  const v = exportScope.value;
+  if (v === "selected") {
+    const ids = new Set(selectedResultIds());
+    return { rows: currentResults.filter((r) => ids.has(String(r.id))), label: "선택" };
+  }
+  if (v.startsWith("comp:")) {
+    const c = v.slice(5);
+    return { rows: currentResults.filter((r) => r.competition === c), label: c };
+  }
+  return { rows: currentResults, label: "전체" };
+}
+
+function exportFileName(label, ext) {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  return `대회결과_${label}_${ymd}.${ext}`.replace(/[\\/:*?"<>|]+/g, " ");
+}
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// 엑셀 시트 이름: []:*?/\ 제거, 31자 이내, 겹치면 번호 붙임
+function sheetName(raw, used) {
+  let base = String(raw || "시트").replace(/[\[\]:*?/\\]/g, "").trim().slice(0, 31) || "시트";
+  let name = base, n = 2;
+  while (used.has(name)) {
+    const suffix = ` (${n++})`;
+    name = base.slice(0, 31 - suffix.length) + suffix;
+  }
+  used.add(name);
+  return name;
+}
+
+function exportXlsx(rows, label) {
+  const head = ["순번", "대회", "종목/부문", "배번", "학교", "이름", "기록", "순위", "날짜", "비고"];
+  const toAoa = (list) => [
+    head,
+    ...list.map((r, i) => [
+      i + 1,
+      r.competition ?? "",
+      r.division ?? "",
+      r.bib == null ? "-" : isNaN(Number(r.bib)) ? String(r.bib) : Number(r.bib),
+      r.school ?? "",
+      r.name ?? "",
+      String(r.record_time ?? ""), // '13:48' 글자 그대로
+      r.rank == null ? "" : r.rank,
+      r.date ?? "",
+      r.note ?? "",
+    ]),
+  ];
+  const widthOf = (v) => Array.from(String(v ?? "")).reduce((s, c) => s + (c.charCodeAt(0) > 255 ? 2 : 1), 0);
+  const addSheet = (wb, name, aoa) => {
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = head.map((_, c) => ({ wch: Math.min(40, Math.max(6, ...aoa.map((row) => widthOf(row[c]))) + 2) }));
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  };
+  const wb = XLSX.utils.book_new();
+  const used = new Set();
+  addSheet(wb, sheetName("전체", used), toAoa(rows));
+  const byDivision = new Map();
+  rows.forEach((r) => {
+    const k = r.division ?? "";
+    if (!byDivision.has(k)) byDivision.set(k, []);
+    byDivision.get(k).push(r);
+  });
+  byDivision.forEach((list, k) => addSheet(wb, sheetName(k, used), toAoa(list)));
+  XLSX.writeFile(wb, exportFileName(label, "xlsx"));
+}
+
+document.getElementById("resultsExportXlsxBtn").addEventListener("click", () => {
+  const { rows, label } = exportSelection();
+  if (!rows.length) return showExportStatus("내려받을 기록이 없습니다", false);
+  try {
+    exportXlsx(rows, label);
+    showExportStatus(`${rows.length}건을 엑셀로 내려받았습니다.`, true);
+  } catch (e) {
+    showExportStatus("엑셀 만들기 실패: " + e.message, false);
+  }
+});
+
+document.getElementById("resultsExportHwpxBtn").addEventListener("click", async () => {
+  const { rows, label } = exportSelection();
+  if (!rows.length) return showExportStatus("내려받을 기록이 없습니다", false);
+  if (!window.HwpxDocs || !window.JSZip) return showExportStatus("한글 파일 도구를 불러오지 못했습니다. 새로고침해 주세요.", false);
+  showExportStatus("한글 파일 만드는 중…", true);
+  try {
+    const { blob } = await window.HwpxDocs.buildResults(rows, { today: new Date() });
+    downloadBlob(blob, exportFileName(label, "hwpx"));
+    showExportStatus(`${rows.length}건을 한글 파일로 내려받았습니다.`, true);
+  } catch (e) {
+    showExportStatus("한글 파일 만들기 실패: " + e.message, false);
+  }
+});
+
 async function loadResultsAdmin() {
   const { data, error } = await supabase
     .from("results")
     .select("*")
     .order("competition", { ascending: true })
-    .order("division", { ascending: true })
-    .order("rank", { ascending: true });
+    .order("division", { ascending: true });
 
   if (error) {
     resultsCountLabel.textContent = "불러오기 실패: " + error.message;
     return;
   }
 
+  let rows = data || [];
+  try {
+    rows = await attachApplicationInfo(rows);
+  } catch (e) {
+    // 배번·학교를 못 불러와도 결과 표는 보여줌
+    rows = rows.map((r) => ({ ...r, bib: null, school: "" }));
+    showResultsDeleteStatus("배번·학교를 불러오지 못했습니다: " + e.message, false);
+  }
   resultsLoaded = true;
-  renderResultsTable(sortWithinDivision(data || []));
+  renderResultsTable(sortResults(rows));
 }
 
 // 직접 입력으로 한 건 추가

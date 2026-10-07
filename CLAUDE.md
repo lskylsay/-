@@ -16,7 +16,7 @@
 | `index.html` | — | 홈 (대회 소개, 일정, 종목). 히어로 오른쪽 위에 "트랙마라톤 축제 대회 결과" 바로가기 QR카드(`.hero-qr`, `qr-trackmarathon-results.svg` → `results.html?competition=트랙마라톤 축제`). 휴대폰(640px 이하)에서는 환영 문구 아래로 내려 가로 배치. 히어로 가운데 위에는 앱 아이콘 묶음 `.hero-apps`(스톱워치 → 대진표 순, 둘 다 `.hero-stopwatch` 구조: 흰 원 + 글자)가 있고 누르면 각각 claude.ai 스톱워치 / 충청북도 학교스포츠클럽 대진표 생성 페이지가 새 창으로 열림. 위치는 `.hero-apps`가 담당(묶음 가운데가 가로 60%). 휴대폰에서는 QR카드 아래에 두 아이콘이 가로로 나란히 |
 | `contest.html` | — | 대회 안내 |
 | `apply.html` | `apply.js` | 참가 신청 (개인 / 트랙마라톤 교사 일괄 엑셀 신청) → `applications`, `bulk_applications`, storage `bulk-uploads` |
-| `admin.html` | `admin.js` | 관리자 (GitHub OAuth 로그인, `ADMIN_EMAIL`만): 신청 관리·배번 등록, 대회 결과 관리(엑셀 업로드; 결과 표에 기록 `record_time` 열이 있고, 맨 오른쪽 '전체선택' 체크 + '선택 삭제'로 한꺼번에 삭제 — 200건씩 나눠 지우고 실제 삭제된 행 수를 확인해 권한 문제로 0건 처리되면 알림), 대회요강·학교체육 게시글 업로드 |
+| `admin.html` | `admin.js` | 관리자 (GitHub OAuth 로그인, `ADMIN_EMAIL`만): 신청 관리·배번 등록, 대회 결과 관리(엑셀 업로드; 결과 표 열 순서는 대회·종목/부문·배번·학교·이름·기록·날짜·순위·비고·선택이며, 배번·학교는 결과의 `applications_id`로 `applications`(`bib_number`, `class_no`)를 200건씩 나눠 불러와 붙임(없으면 '-'), 정렬은 대회→종목/부문→배번(없으면 맨 뒤). '총 N건' 아래 줄에서 범위(대회 전체/대회별/체크한 기록만 — 체크하면 자동으로 '체크한 기록만', 체크가 없으면 '대회 전체')를 골라 **엑셀(.xlsx)**(SheetJS; '전체' 시트 + 종목/부문별 시트, 기록은 글자 그대로)·**한글(.hwpx)**(`HwpxDocs.buildResults`)로 내려받음, 0건이면 "내려받을 기록이 없습니다", 파일명 `대회결과_{대회명|전체|선택}_{YYYYMMDD}`. 맨 오른쪽 '전체선택' 체크 + '선택 삭제'로 한꺼번에 삭제 — 200건씩 나눠 지우고 실제 삭제된 행 수를 확인해 권한 문제로 0건 처리되면 알림), 대회요강·학교체육 게시글 업로드 |
 | `workroom.html` | (파일 안에 내장) + `hwpx-docs.js` | 관리자 업무실 (admin.html 탭 줄의 "업무실" 링크). 단독 페이지로 자체 CONFIG(같은 Supabase 프로젝트·관리자 이메일)와 supabase-js UMD 사용. 사업·워크플로우, 일정·할일, 공문 초안, 대회 관리, 예산 → 테이블 `admin_projects`, `admin_tasks`, `admin_workflows`, `admin_budget`, `admin_documents` (모두 관리자 전용 RLS). 대회 관리에는 "경기기록원 기록 입력: 항상 가능" 안내만 표시. 사업·워크플로우 화면: '+ 새 사업'은 제목 줄 오른쪽에 두어 목록·상세·워크플로우 탭 어디서나 보임. 메뉴로 들어오면 항상 목록부터(`go('projects')`가 `S.selProject` 초기화), 오늘 화면에서 사업을 누르면 `go('projects', 사업id)`로 그 사업 상세 |
 | `recorder.html` | `recorder.js` + `script.js` | 경기기록원 (PIN 입장, 로그인 없이 anon 키로 동작). 탭: 기록 입력 / 대회 결과(실명 확인) |
 | `results.html` | `script.js` | 대회 결과 공개 조회 (RPC `get_public_results`) |
@@ -39,6 +39,8 @@
   | 운영(안) | `buildPlan` | `templates/plan-template.hwpx` | jecheon-sports-plan-doc |
   | 세부운영계획 | `buildDetail` | `templates/detail-template.hwpx` (**아직 없음**) | jecheon-detailed-operation-plan |
   | 결과보고 | `buildOnepage` | `templates/onepage-template.hwpx` (**아직 없음**) | jecheon-onepage-report (build_onepage.py 이식) |
+  | 대회 결과표 (admin.html 대회결과관리) | `buildResults(rows, opts)` | `templates/results-template.hwpx` | — (plan-template 바탕) |
+  - `results-template.hwpx` 약속: 본문 문단 [0]=구역 설정, [1]=머리 제목표(○○○), [2]='○ 내용' 견본, [3]=7열 표(머리행 순위|배번|학교|이름|기록|비고|확인 + 견본행). 문서 = 제목(`{대회명} 경기 결과`, 여러 대회면 '대회 결과') + 종목/부문마다 '○ 종목 (N명)' 문단·표(기록 빠른 순, 기록 없으면 배번 순, 순위는 results.rank 우선 없으면 기록 순서·같은 기록 같은 순위) + 맨 아래 '※ 기록은 초 단위(소수점 이하 버림)'. admin.html은 JSZip CDN과 `hwpx-docs.js`를 불러옴
 - 서식 파일이 없으면 그 탭의 버튼은 "서식 파일 필요"로 꺼짐 (`HwpxDocs.hasTemplate`)
 - 화면 미리보기(`genDoc` → `HwpxDocs.previewHtml`)와 hwpx는 같은 모델(`planModel`/`detailModel`/`onepageModel`)에서 만들어 내용이 같음
 - `templates/`는 누구나 받을 수 있는 경로 → **견본 문구('○○○', '내용')만 남긴 정리본**만 둔다. 실명·학교 명단·연락처·작성자 메타데이터(`content.hpf`) 금지, `Preview/PrvText.txt` 비움, `Preview/PrvImage.png` 흰 그림
