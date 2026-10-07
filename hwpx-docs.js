@@ -8,6 +8,7 @@
        운영(안)       buildPlan     templates/plan-template.hwpx    jecheon-sports-plan-doc
        세부운영계획   buildDetail   templates/detail-template.hwpx  jecheon-detailed-operation-plan
        결과보고       buildOnepage  templates/onepage-template.hwpx jecheon-onepage-report
+       대회 결과표    buildResults  templates/results-template.hwpx (admin.html 대회결과관리에서 내려받기)
    - 화면 미리보기(previewHtml)와 hwpx 는 같은 내용 모델(planModel 등)에서 만들어
      두 결과가 항상 같게 유지
    ===================================================================== */
@@ -18,7 +19,8 @@
   const TEMPLATES = {
     plan: 'templates/plan-template.hwpx',
     detail: 'templates/detail-template.hwpx',
-    result: 'templates/onepage-template.hwpx'
+    result: 'templates/onepage-template.hwpx',
+    results: 'templates/results-template.hwpx'
   };
   const WD = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -500,6 +502,85 @@
     return { blob: await pack(zip, doc, prv, opts && opts.type), name: fileName('result', f, m), model: m, est: m.est };
   }
 
+  /* ============ 대회 결과표 (admin.html 대회결과관리 → 한글 내려받기) ============
+     서식 파일 약속(templates/results-template.hwpx): 본문 문단 [0]=구역 설정, [1]=머리 제목표(○○○),
+     [2]='○ 내용' 견본 문단, [3]=7열 표(머리행 + 견본행: 순위|배번|학교|이름|기록|비고|확인)
+     rows: { competition, division, bib, school, name, record_time, rank, note } 배열 */
+  const RES_HEAD = ['순위', '배번', '학교', '이름', '기록', '비고', '확인'];
+  const cutFraction = s => String(s == null ? '' : s).trim().replace(/(\d)\.\d+$/, '$1'); // 소수점 이하 버림
+  function recSeconds(t) {
+    const m = /^(\d+):(\d{1,2})(?::(\d{1,2}))?$/.exec(cutFraction(t));
+    if (!m) return null;
+    return m[3] !== undefined ? +m[1] * 3600 + +m[2] * 60 + +m[3] : +m[1] * 60 + +m[2];
+  }
+  const bibNum = b => (b == null || b === '' || isNaN(Number(b))) ? Infinity : Number(b);
+  function resultsModel(rows, opts) {
+    const t = todayParts((opts && opts.today) || new Date());
+    const comps = []; (rows || []).forEach(r => { if (!comps.includes(r.competition)) comps.push(r.competition); });
+    const multi = comps.length > 1;
+    const title = comps.length === 1 ? `${comps[0]} 경기 결과` : '대회 결과';
+    const order = [], map = {};
+    (rows || []).forEach(r => {
+      const k = r.competition + '\u0001' + r.division;
+      if (!map[k]) { map[k] = { label: multi ? `${r.competition} ${r.division}` : String(r.division || ''), rows: [] }; order.push(k); }
+      map[k].rows.push(r);
+    });
+    const groups = order.map(k => {
+      const g = map[k];
+      const sorted = g.rows.slice().sort((a, b) => {
+        const ta = recSeconds(a.record_time), tb = recSeconds(b.record_time);
+        if (ta != null && tb != null && ta !== tb) return ta - tb;
+        if ((ta == null) !== (tb == null)) return ta == null ? 1 : -1;
+        const ba = bibNum(a.bib), bb = bibNum(b.bib);
+        return ba === bb ? 0 : ba < bb ? -1 : 1;
+      });
+      // 순위: results.rank 가 있으면 그 값, 없으면 기록 순서대로(같은 기록은 같은 순위, 다음은 건너뜀: 1, 1, 3)
+      const times = sorted.map(r => recSeconds(r.record_time));
+      const out = sorted.map((r, i) => {
+        let rank = '';
+        if (r.rank != null && r.rank !== '') rank = String(r.rank);
+        else if (times[i] != null) rank = String(1 + times.filter(x => x != null && x < times[i]).length);
+        return [rank, r.bib == null || r.bib === '' ? '-' : String(r.bib), r.school || '', r.name || '', cutFraction(r.record_time), r.note || '', ''];
+      });
+      return { label: `${g.label} (${out.length}명)`, rows: out };
+    });
+    return { title, header: title, groups, note: '※ 기록은 초 단위(소수점 이하 버림)', count: (rows || []).length, today: `${t.y}. ${t.m}. ${t.d}.` };
+  }
+
+  async function buildResults(rows, opts) {
+    const m = resultsModel(rows, opts);
+    const { zip, doc } = await loadTemplate('results', opts);
+    const ctx = makeCtx(doc);
+    const ps = paras(doc);
+    const titleP = ps.find(p => kids(p, 'run').some(r => kids(r, 'tbl').length) && /^\s*○○○\s*$/.test(textOf(p)));
+    const bulletP = ps.find(p => /^\s*○\s*내용\s*$/.test(textOf(p)) && !desc(p, 'tbl').length);
+    const tableP = ps.find(p => desc(p, 'tbl').length && p !== titleP);
+    if (!titleP || !bulletP || !tableP) throw new Error('결과표 서식의 문단 구성이 예상과 다릅니다');
+    const cp = desc(titleP, 'p').find(p => /○○○/.test(textOf(p)) && !desc(p, 'p').length);
+    setParaText(cp, m.header); dropLsa(titleP); desc(titleP, 'p').forEach(dropLsa);
+    const bProto = bulletP.cloneNode(true), tProto = tableP.cloneNode(true);
+    const pre = bulletPrefix(bProto);
+    remove(bulletP); remove(tableP);
+    let ref = titleP;
+    const put = n => { insertAfter(ref, n); ref = n; return n; };
+    m.groups.forEach(g => {
+      put(setParaText(renewIds(ctx, bProto.cloneNode(true)), pre + g.label));
+      const tp = renewIds(ctx, tProto.cloneNode(true));
+      const tbl = desc(tp, 'tbl')[0];
+      tbl.setAttribute('id', ctx.newId());
+      fillTable(ctx, tbl, 1, g.rows, 0, (r, i) => [r[i]]);
+      dropLsa(tp); put(tp);
+      put(setParaText(renewIds(ctx, bProto.cloneNode(true)), ''));
+    });
+    // 맨 아래 ※ 안내: 글머리 서식을 살려 '  ※ ' + 본문
+    const np = renewIds(ctx, bProto.cloneNode(true));
+    const nts = kids(np, 'run').reduce((a, r) => a.concat(kids(r, 't')), []);
+    setT(nts[0], '  ※ '); if (nts[1]) setT(nts[1], m.note.replace(/^※\s*/, '')); dropLsa(np);
+    put(np);
+    const prv = [m.title, ...m.groups.map(g => [g.label, ...g.rows.map(r => r.join(' ').trim())].join('\n')), m.note].join('\n');
+    return { blob: await pack(zip, doc, prv, opts && opts.type), model: m };
+  }
+
   const BUILDERS = { plan: buildPlan, detail: buildDetail, result: buildOnepage };
   const tplCache = {};
   async function hasTemplate(type, opts) {
@@ -509,7 +590,7 @@
     return tplCache[type];
   }
 
-  const api = { TEMPLATES, DOC_LABEL, buildPlan, buildDetail, buildOnepage, build: (type, f, data, opts) => BUILDERS[type](f, data, opts),
+  const api = { TEMPLATES, DOC_LABEL, buildPlan, buildDetail, buildOnepage, buildResults, resultsModel, build: (type, f, data, opts) => BUILDERS[type](f, data, opts),
     hasTemplate, previewHtml, planModel, detailModel, onepageModel, schoolStatus, scheduleRows, timeRange, estimateLines, fileName };
   root.HwpxDocs = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
