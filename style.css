@@ -163,12 +163,12 @@ a { color: inherit; }
   position: relative;
 }
 
-/* 히어로 가운데 위 앱 아이콘 묶음: 스톱워치 → 대진표 (index.html)
-   묶음의 가운데가 가로 60% 지점에 오도록 배치 */
+/* 히어로 가운데 위 앱 아이콘 묶음: 스톱워치 → 대진표 → 스코어보드 (index.html)
+   묶음의 가운데가 가로 65% 지점에 오도록 배치 */
 .hero-apps {
   position: absolute;
   top: 0;
-  left: 60%;
+  left: 65%;
   transform: translateX(-50%);
   display: flex;
   gap: 28px;
@@ -321,22 +321,24 @@ a { color: inherit; }
     order: 100;
     transform: none;
     margin-top: 24px;
-    gap: 20px;
+    gap: 24px;
   }
+  /* 세로형(원 아래 글자)으로 세 개를 한 줄에 */
   .hero-stopwatch {
-    flex-direction: row;
-    gap: 10px;
+    flex-direction: column;
+    gap: 6px;
   }
   .hero-stopwatch-icon {
-    width: 52px;
-    height: 52px;
+    width: 60px;
+    height: 60px;
   }
   .hero-stopwatch-icon svg {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
   }
   .hero-stopwatch-text {
-    font-size: 1rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
   }
 }
 
