@@ -163,45 +163,6 @@ a { color: inherit; }
   position: relative;
 }
 
-/* 히어로 오른쪽 위 QR코드 카드 (index.html) */
-.hero-qr {
-  position: absolute;
-  top: -40px;
-  right: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.28);
-  text-decoration: none;
-  text-align: center;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.hero-qr:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 28px rgba(0,0,0,0.34);
-}
-.hero-qr-code img {
-  display: block;
-  width: 120px;
-  height: 120px;
-}
-.hero-qr-text {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-  line-height: 1.35;
-}
-.hero-qr-text strong {
-  font-size: 0.92rem;
-  font-weight: 800;
-  color: var(--clay);
-}
-
 /* 히어로 가운데 위 앱 아이콘 묶음: 스톱워치 → 대진표 (index.html)
    묶음의 가운데가 가로 60% 지점에 오도록 배치 */
 .hero-apps {
@@ -346,33 +307,20 @@ a { color: inherit; }
     text-align: left;
     max-width: none;
   }
-  /* 휴대폰: QR카드를 환영 문구 아래로 내려 가로 배치 */
-  .hero .wrap.hero-with-qr {
+  /* 휴대폰: 앱 아이콘 묶음을 환영 문구 바로 아래로 내려 가로로 나란히 */
+  .hero .wrap.hero-with-apps {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
   }
-  .hero .hero-with-qr p.lede {
+  .hero .hero-with-apps p.lede {
     flex: none;
   }
-  .hero-qr {
-    position: static;
-    order: 99;
-    flex-direction: row;
-    text-align: left;
-    gap: 12px;
-    margin-top: 24px;
-  }
-  .hero-qr-code img {
-    width: 84px;
-    height: 84px;
-  }
-  /* 휴대폰: 앱 아이콘 묶음은 QR카드 아래, 각 아이콘은 가로 배치 */
   .hero-apps {
     position: static;
     order: 100;
     transform: none;
-    margin-top: 14px;
+    margin-top: 24px;
     gap: 20px;
   }
   .hero-stopwatch {
