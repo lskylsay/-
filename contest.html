@@ -104,38 +104,16 @@
 
 <section class="block" style="background:#fff; border-top:1px solid var(--line); border-bottom:1px solid var(--line);">
   <div class="wrap">
-    <h2>전체 일정 한눈에 보기</h2>
-    <p class="sub">두 대회의 주요 일정을 시간순으로 정리했습니다.</p>
-    <div class="timeline">
-      <div class="row">
-        <span class="idx">1</span>
-        <span class="date">09.21 (월)</span>
-        <span>트랙마라톤 축제 · 육상대회 접수 동시 시작</span>
+    <h2>대회 일정</h2>
+    <p class="sub">오늘 날짜를 기준으로 지난 일정과 다음 일정을 나누어 보여 드립니다.</p>
+    <div class="sched-grid">
+      <div class="sched-col sched-past">
+        <h3>지난 일정 <span id="schedPastCount" class="sched-count"></span></h3>
+        <ul id="schedPast" class="sched-list"></ul>
       </div>
-      <div class="row">
-        <span class="idx">2</span>
-        <span class="date">09.29 (화)</span>
-        <span>트랙마라톤 축제 접수 마감</span>
-      </div>
-      <div class="row">
-        <span class="idx">3</span>
-        <span class="date">10.07 (수)</span>
-        <span>트랙마라톤 축제 개최 (제천종합운동장 육상트랙)</span>
-      </div>
-      <div class="row">
-        <span class="idx">4</span>
-        <span class="date">10.14 (수)</span>
-        <span>육상대회 접수 마감</span>
-      </div>
-      <div class="row">
-        <span class="idx">5</span>
-        <span class="date">11.09 (월)</span>
-        <span>육상대회 출정식 (제천교육지원청 대회의실 14:00)</span>
-      </div>
-      <div class="row">
-        <span class="idx">6</span>
-        <span class="date">11.10 – 11.12</span>
-        <span>제48회 충청북도교육감기 육상대회 개최 (진천종합운동장 일대)</span>
+      <div class="sched-col sched-next">
+        <h3>다음 일정 <span id="schedNextCount" class="sched-count"></span></h3>
+        <ul id="schedNext" class="sched-list"></ul>
       </div>
     </div>
   </div>
@@ -147,6 +125,44 @@
     <span><a href="admin.html" style="color:inherit;">관리자</a></span>
   </div>
 </footer>
+
+<script>
+// 대회 일정 — 날짜를 바꾸려면 아래 목록만 고치면 됩니다. (start/end: YYYY-MM-DD, end가 없으면 하루 일정)
+(function () {
+  var EVENTS = [
+    { start: '2026-09-21', label: '트랙마라톤 축제 · 육상대회 접수 동시 시작' },
+    { start: '2026-09-29', label: '트랙마라톤 축제 접수 마감' },
+    { start: '2026-10-07', label: '트랙마라톤 축제 개최 (제천종합운동장 육상트랙)' },
+    { start: '2026-10-14', label: '육상대회 접수 마감' },
+    { start: '2026-11-09', label: '육상대회 출정식 (제천교육지원청 대회의실 14:00)' },
+    { start: '2026-11-10', end: '2026-11-12', label: '제48회 충청북도교육감기 육상대회 개최 (진천종합운동장 일대)' }
+  ];
+  var WD = ['일', '월', '화', '수', '목', '금', '토'];
+  function d(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function md(s) { var x = d(s); return String(x.getMonth() + 1).padStart(2, '0') + '.' + String(x.getDate()).padStart(2, '0'); }
+  function dateText(e) { return e.end ? md(e.start) + ' – ' + md(e.end) : md(e.start) + ' (' + WD[d(e.start).getDay()] + ')'; }
+  var now = new Date(); var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var past = [], next = [];
+  EVENTS.forEach(function (e) { (d(e.end || e.start) < today ? past : next).push(e); });
+  past.reverse(); // 지난 일정은 최근 것이 위로
+  function render(el, list, isNext) {
+    if (!list.length) { el.innerHTML = '<li class="sched-empty">' + (isNext ? '예정된 일정이 없습니다.' : '지난 일정이 없습니다.') + '</li>'; return; }
+    el.innerHTML = list.map(function (e) {
+      var badge = '';
+      if (isNext) {
+        var diff = Math.round((d(e.start) - today) / 864e5);
+        badge = diff > 0 ? '<span class="sched-dday">D-' + diff + '</span>' : (diff === 0 ? '<span class="sched-dday now">오늘</span>' : '<span class="sched-dday now">진행 중</span>');
+      }
+      return '<li class="sched-item"><span class="sched-date">' + dateText(e) + '</span><span class="sched-label">' + esc(e.label) + '</span>' + badge + '</li>';
+    }).join('');
+  }
+  render(document.getElementById('schedPast'), past, false);
+  render(document.getElementById('schedNext'), next, true);
+  document.getElementById('schedPastCount').textContent = past.length + '건';
+  document.getElementById('schedNextCount').textContent = next.length + '건';
+})();
+</script>
 
 </body>
 </html>
