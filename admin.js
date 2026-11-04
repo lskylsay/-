@@ -420,6 +420,9 @@ const adminRosterTabBtn = document.getElementById("adminRosterTabBtn");
 const adminResultsTabBtn = document.getElementById("adminResultsTabBtn");
 const adminGuidelinesTabBtn = document.getElementById("adminGuidelinesTabBtn");
 const adminSchoolpeTabBtn = document.getElementById("adminSchoolpeTabBtn");
+const adminTeamsTabBtn = document.getElementById("adminTeamsTabBtn");
+const adminActivityTabBtn = document.getElementById("adminActivityTabBtn");
+const adminPolicyTabBtn = document.getElementById("adminPolicyTabBtn");
 const rosterAdminSection = document.getElementById("rosterAdminSection");
 const resultsAdminSection = document.getElementById("resultsAdminSection");
 const guidelinesAdminSection = document.getElementById("guidelinesAdminSection");
@@ -431,26 +434,38 @@ const logoutBtn5 = document.getElementById("logoutBtn5");
 let resultsLoaded = false;
 let guidelinesLoaded = false;
 let schoolpeLoaded = false;
+// 선택 3·4·5 관리 탭은 학교체육업무지원 관리 화면을 카테고리 하나로 고정해서 씁니다.
+const SP_SINGLE_TABS = ["teams", "activity", "policy"];
 
 function showAdminTab(tab) {
   adminRosterTabBtn.classList.toggle("active", tab === "roster");
   adminResultsTabBtn.classList.toggle("active", tab === "results");
   adminGuidelinesTabBtn.classList.toggle("active", tab === "guidelines");
   adminSchoolpeTabBtn.classList.toggle("active", tab === "schoolpe");
+  adminTeamsTabBtn.classList.toggle("active", tab === "teams");
+  adminActivityTabBtn.classList.toggle("active", tab === "activity");
+  adminPolicyTabBtn.classList.toggle("active", tab === "policy");
   rosterAdminSection.style.display = tab === "roster" ? "" : "none";
   resultsAdminSection.style.display = tab === "results" ? "" : "none";
   guidelinesAdminSection.style.display = tab === "guidelines" ? "" : "none";
-  schoolpeAdminSection.style.display = tab === "schoolpe" ? "" : "none";
+  const isBoardTab = tab === "schoolpe" || SP_SINGLE_TABS.includes(tab);
+  schoolpeAdminSection.style.display = isBoardTab ? "" : "none";
 
   if (tab === "results" && !resultsLoaded) loadResultsAdmin();
   if (tab === "guidelines" && !guidelinesLoaded) loadGuidelinesAdmin();
-  if (tab === "schoolpe" && !schoolpeLoaded) loadSchoolpeAdmin();
+  if (isBoardTab) {
+    setSpMode(tab === "schoolpe" ? null : tab);
+    if (!schoolpeLoaded) loadSchoolpeAdmin();
+  }
 }
 
 adminRosterTabBtn.addEventListener("click", () => showAdminTab("roster"));
 adminResultsTabBtn.addEventListener("click", () => showAdminTab("results"));
 adminGuidelinesTabBtn.addEventListener("click", () => showAdminTab("guidelines"));
 adminSchoolpeTabBtn.addEventListener("click", () => showAdminTab("schoolpe"));
+adminTeamsTabBtn.addEventListener("click", () => showAdminTab("teams"));
+adminActivityTabBtn.addEventListener("click", () => showAdminTab("activity"));
+adminPolicyTabBtn.addEventListener("click", () => showAdminTab("policy"));
 
 logoutBtn3.addEventListener("click", doLogout);
 logoutBtn4.addEventListener("click", doLogout);
@@ -1071,11 +1086,29 @@ const spListContainer = document.getElementById("spListContainer");
 
 let spAllRows = [];
 let spActiveCategory = "전체";
+let spMode = null; // null = 기존 5개 게시판, 그 외 = 해당 카테고리 하나만
+
+function spCategoryKeys() {
+  return spMode ? [spMode] : Object.keys(CATEGORY_LABELS).filter((k) => !SP_SINGLE_TABS.includes(k));
+}
+
+function setSpMode(mode) {
+  spMode = mode;
+  spActiveCategory = "전체";
+  const keys = spCategoryKeys();
+  spCategory.innerHTML = (mode ? "" : '<option value="">선택</option>') +
+    keys.map((k) => `<option value="${k}">${CATEGORY_LABELS[k]}</option>`).join("");
+  spCategory.value = mode || "";
+  spCategory.disabled = !!mode;
+  document.getElementById("spFormTitle").textContent = mode ? `${CATEGORY_LABELS[mode]} — 새 자료 등록` : "새 게시물 등록";
+  spFilterRow.style.display = mode ? "none" : "";
+  if (schoolpeLoaded) { renderSpFilters(); renderSpList(); }
+}
 
 schoolpeRefreshBtn.addEventListener("click", loadSchoolpeAdmin);
 
 function renderSpFilters() {
-  const cats = ["전체", ...Object.keys(CATEGORY_LABELS)];
+  const cats = ["전체", ...spCategoryKeys()];
   spFilterRow.innerHTML = "";
   cats.forEach((cat) => {
     const btn = document.createElement("button");
@@ -1091,7 +1124,9 @@ function renderSpFilters() {
 }
 
 function renderSpList() {
-  const rows = spActiveCategory === "전체" ? spAllRows : spAllRows.filter((r) => r.category === spActiveCategory);
+  const allowed = spCategoryKeys();
+  const scoped = spAllRows.filter((r) => allowed.includes(r.category));
+  const rows = spActiveCategory === "전체" ? scoped : scoped.filter((r) => r.category === spActiveCategory);
   spCountLabel.textContent = `총 ${rows.length}건`;
 
   spListContainer.innerHTML = rows
@@ -1203,7 +1238,7 @@ spUploadBtn.addEventListener("click", async () => {
   spFile.value = "";
   document.getElementById("spFileName").textContent = "";
   document.getElementById("spFileDropzone").classList.remove("has-file");
-  spCategory.value = "";
+  spCategory.value = spMode || "";
   loadSchoolpeAdmin();
 });
 
