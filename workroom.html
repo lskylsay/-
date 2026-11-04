@@ -240,6 +240,7 @@ async function loadAll(){
     q(sb.from('admin_documents').select('id,created_at,updated_at,project_id,doc_type,title').order('updated_at',{ascending:false}))
   ]);
   Object.assign(S,{projects:p,tasks:t,workflows:w,budget:b,docs:d});
+  S.pubCol = !(await sb.from('admin_projects').select('is_public').limit(1)).error;   // DB에 '대회 일정 공개' 칸이 있는지 확인
   if (!w.length){
     await q(sb.from('admin_workflows').insert(DEFAULT_WORKFLOWS));
     S.workflows = await q(sb.from('admin_workflows').select('*').order('id'));
@@ -373,7 +374,7 @@ async function vHome(){
     $('#appSum').innerHTML = `<div class="stats"><div class="stat"><b>${apps.length}</b><span>전체 신청</span></div>${Object.entries(by).map(([k,n]) => `<div class="stat"><b>${n}</b><span>${esc(k)}</span></div>`).join('')}</div>`;
   } catch(e){ $('#appSum').textContent = '신청 데이터를 읽지 못했습니다.'; }
 }
-const hasPub = () => S.projects.concat(S.tasks).some(r => 'is_public' in r);   // DB에 is_public 칸이 있을 때만 '대회 일정에 공개' 체크 표시
+const hasPub = () => !!S.pubCol;   // DB에 is_public 칸이 있을 때만 '대회 일정에 공개' 체크 표시
 const pubBox = (r) => hasPub() ? `<label class="f" style="grid-column:1/-1;flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="pubchk" ${r.is_public?'checked':''} style="width:auto"> 홈페이지 '대회 일정'에 공개 <span class="small muted">(제목·날짜·장소만 공개됩니다)</span></label>` : '';
 const groupCount = (arr, fn) => arr.reduce((m,x) => (m[fn(x)] = (m[fn(x)]||0)+1, m), {});
 
@@ -475,6 +476,7 @@ function projDetail(id){
       <div class="stats"><div class="stat"><b>${progress(id)}%</b><span>준비율 (${ts.filter(t=>t.done).length}/${ts.length})</span></div><div class="stat"><b>${won(pl)}</b><span>예산 계획(원)</span></div><div class="stat"><b>${pl?Math.round(sp/pl*100):0}%</b><span>집행률</span></div></div>
       <div class="row"><select id="wfs" aria-label="워크플로우 선택">${S.workflows.map(w => `<option value="${w.id}">${esc(w.name)}</option>`).join('')}</select><button class="btn" id="aw">워크플로우 적용</button></div>
       <div class="row" style="margin-top:10px"><button class="btn" id="gd">공문 초안 작성</button><button class="btn" id="gb">예산 편성</button></div>
+      ${hasPub() ? `<label class="row small" style="margin-top:12px;gap:8px;cursor:pointer"><input type="checkbox" id="pubnow" ${p.is_public?'checked':''} style="width:auto"> <b>홈페이지 '대회 일정'에 공개</b> <span class="muted">(제목·행사일·장소만 공개)</span></label>` : ''}
       ${p.memo?`<p class="small" style="white-space:pre-wrap;margin-top:14px">${esc(p.memo)}</p>`:''}
     </section>
     <section class="panel"><div class="row"><h2 style="margin:0">할 일</h2><span class="spacer"></span><button class="btn" id="at">+ 할 일</button></div>
@@ -482,6 +484,7 @@ function projDetail(id){
   const re = () => projDetail(id);
   $('#back').onclick = () => { S.selProject = null; vProjects('list'); };
   $('#ep').onclick = () => projDialog(p);
+  if ($('#pubnow')) $('#pubnow').onchange = async e => { const v = e.target.checked; try { await q(sb.from('admin_projects').update({ is_public: v }).eq('id', p.id)); p.is_public = v; toast(v ? '대회 일정에 공개했습니다' : '대회 일정 공개를 껐습니다'); } catch(_) { e.target.checked = !v; } };
   $('#at').onclick = () => taskDialog(null, re, { project_id:id, due_date:p.event_date||TODAY() });
   $('#aw').onclick = async () => { const w = S.workflows.find(w => w.id == $('#wfs').value);
     if (ts.length && !confirm(`이미 할 일이 ${ts.length}건 있습니다. 「${w.name}」 단계를 추가할까요?`)) return; await applyWorkflow(p, w); re(); };

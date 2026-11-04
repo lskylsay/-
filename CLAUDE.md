@@ -58,7 +58,7 @@
 - 클라이언트: `import { createClient } from "https://esm.sh/@supabase/supabase-js@2"` (각 JS에서 개별 생성)
 - 테이블: `applications`, `bulk_applications`, `results`, `guidelines`, `school_pe_posts`
 - RPC: `get_recorder_roster(comp)` — 기록원용 명단(개인정보 제외, `id, sport, bib_number, school, name`)
-- RPC: `get_public_schedule()` — contest.html 대회 일정용. `admin_projects`·`admin_tasks` 중 `is_public = true`이고 날짜가 있는 행만 `title, event_date, place, kind, source`로 반환(SECURITY DEFINER). 두 테이블에 `is_public boolean default false` 칸 필요. 업무실의 사업·할 일 창에 '홈페이지 대회 일정에 공개' 체크(`pubBox`, 칸이 있을 때만 표시)
+- RPC: `get_public_schedule()` — contest.html 대회 일정용. `admin_projects`·`admin_tasks` 중 `is_public = true`이고 날짜가 있는 행만 `title, event_date, place, kind, source`로 반환(SECURITY DEFINER). 두 테이블에 `is_public boolean default false` 칸 필요. 업무실 사업 상세 화면(`#pubnow`, 누르면 바로 저장)과 사업·할 일 수정 창(`pubBox`)에 '홈페이지 대회 일정에 공개' 체크 — 칸이 있을 때만 표시(`S.pubCol`: loadAll에서 `select('is_public')`로 확인)
 - RPC: `get_public_results(comp)` — 결과 페이지용. applications ⟕ results, 반환 `application_id, competition, sport, bib_number, school, name, grade, rank, record_time, note` (배번순)
 - 권한은 **RLS 정책이 실제 보안**이며, 화면의 이메일 체크·PIN은 보조 장치일 뿐입니다.
   - 관리자 전용 작업: `authenticated` + `auth.jwt() ->> 'email' = 'dkjy0906@gmail.com'`
