@@ -305,6 +305,73 @@ function parseRosterSheet(sheet) {
   return { entries, skipped, headerFound: true };
 }
 
+// ---- 참가 및 수요조사표 형식(순·급별·학교명·학년·성명·첫번째/두번째·계주·성별 …) ----
+// 육상대회 학교별 취합 파일(예: '각종 수요(버스, 숙박, 육상복)조사표' 시트)을 읽어
+// 학생 1명이 출전하는 종목마다 신청 1건으로 만듭니다. 종목 이름은 "100m 남초5"(종목 + 부별)로 만들어
+// 대회 현황 페이지에서 종목·부별로 나뉘어 보이게 합니다.
+// 연락처·육상복 사이즈·버스·숙박 정보는 가져오지 않습니다(개인정보 최소화).
+const SURVEY_SHEET_RE = /조사표|수요.*조사/;
+const normText = (v) => String(v == null ? "" : v).replace(/[\s　]+/g, " ").trim();
+const normHead = (v) => String(v == null ? "" : v).replace(/[\s　]+/g, "");
+
+function parseSurveySheet(sheet) {
+  const rows2D = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  const hi = rows2D.findIndex((r) => {
+    const h = r.map(normHead);
+    return h.includes("학교명") && h.includes("성명") && (h.includes("급별") || h.includes("학년"));
+  });
+  if (hi === -1) return null;
+  const head = rows2D[hi].map(normHead);
+  const col = (re) => head.findIndex((h) => re.test(h));
+  const c = {
+    level: col(/^급별$/), school: col(/^학교명$/), grade: col(/^학년$/), name: col(/^성명$/), gender: col(/^성별/),
+    events: head.map((h, i) => (/^(첫번째|두번째|참가종목)$/.test(h) ? i : -1)).filter((i) => i >= 0),
+    relays: head.map((h, i) => {
+      if (/4x100m?R?/i.test(h)) return { i, label: "4x100mR" };
+      if (/4x400m?R?/i.test(h)) return { i, label: "4x400mR" };
+      if (/mixed|혼성/i.test(h)) return { i, label: "혼성계주" };
+      return null;
+    }).filter(Boolean),
+  };
+  const isOn = (v) => { const t = normText(v).toUpperCase(); return t === "1" || t === "O" || t === "○" || t === "Y"; };
+  const students = []; let skipped = 0;
+  rows2D.slice(hi + 1).forEach((r) => {
+    const no = normText(r[0]);
+    if (/예시/.test(no) || /예시/.test(normText(r[c.school]))) return;
+    const name = normText(r[c.name]);
+    if (!name) return;
+    const school = normText(r[c.school]);
+    if (!school) { skipped++; return; }
+    const level = c.level >= 0 ? normText(r[c.level]).charAt(0) : "";        // 초 / 중 / 고
+    const gradeNum = c.grade >= 0 ? normText(r[c.grade]).replace(/학년$/, "") : "";
+    const gender = c.gender >= 0 ? normText(r[c.gender]).charAt(0) : "";      // 남 / 여
+    const bu = `${gender}${level}${gradeNum}`;                                // 부별: 남초5
+    const events = c.events.map((i) => normText(r[i])).filter(Boolean);
+    const relays = c.relays.filter((x) => isOn(r[x.i])).map((x) => x.label);
+    students.push({ school, name, level, gradeNum, gender, bu, events, relays });
+  });
+  return { students, skipped };
+}
+
+function surveyToApplications(students, competition) {
+  const out = [];
+  students.forEach((s) => {
+    const sports = [
+      ...s.events.map((e) => (s.bu ? `${e} ${s.bu}` : e)),
+      ...s.relays.map((l) => `${l} ${s.level === "초" ? "초등" : s.level === "중" ? "중등" : s.level === "고" ? "고등" : ""}`.trim()),
+    ];
+    if (!sports.length) sports.push("종목 미기재");
+    sports.forEach((sport) => out.push({
+      competition, sport, class_no: s.school,
+      grade: s.gradeNum ? `${s.gradeNum}학년` : null,
+      leader_name: s.name, contact: null,
+      members: [s.gradeNum && `${s.gradeNum}학년`, s.gender, s.bu].filter(Boolean).join(" · ") || null,
+      note: null, bib_number: null,
+    }));
+  });
+  return out;
+}
+
 rosterUploadBtn.addEventListener("click", async () => {
   const file = rosterUploadFile.files[0];
   const competition = document.getElementById("rosterUploadCompetition").value;
@@ -332,7 +399,20 @@ rosterUploadBtn.addEventListener("click", async () => {
     let totalSkipped = 0;
     const sheetSummaries = [];
 
-    workbook.SheetNames.forEach((sheetName) => {
+    // 참가·수요조사표 형식 시트가 있으면 그 시트만 읽음(같은 파일의 시간표·명단 시트와 중복 등록 방지)
+    const surveySheets = workbook.SheetNames.filter((n) => SURVEY_SHEET_RE.test(n));
+    let surveyMode = false;
+    surveySheets.forEach((sheetName) => {
+      const r = parseSurveySheet(workbook.Sheets[sheetName]);
+      if (!r) return;
+      surveyMode = true;
+      const apps = surveyToApplications(r.students, competition);
+      parsed.push(...apps);
+      totalSkipped += r.skipped;
+      sheetSummaries.push(`${sheetName}: 학생 ${r.students.length}명 → 종목별 ${apps.length}건`);
+    });
+
+    if (!surveyMode) workbook.SheetNames.forEach((sheetName) => {
       const sheet = workbook.Sheets[sheetName];
       const { entries, skipped, headerFound } = parseRosterSheet(sheet);
       if (!headerFound) return; // 표 형식이 아닌 시트는 조용히 건너뜀
@@ -359,8 +439,19 @@ rosterUploadBtn.addEventListener("click", async () => {
     });
 
     if (parsed.length === 0) {
-      rosterUploadStatus.textContent = "유효한 행이 없습니다. '배번/소속/성명' 등의 열 제목이 있는 시트인지 확인해 주세요.";
+      rosterUploadStatus.textContent = surveyMode
+        ? "등록할 신청자가 없습니다. 조사표에 학생 이름이 입력된 행이 있는지 확인해 주세요. ((예시) 행은 제외됩니다)"
+        : "유효한 행이 없습니다. '배번/소속/성명' 또는 '학교명/성명/급별' 등의 열 제목이 있는 시트인지 확인해 주세요.";
       rosterUploadStatus.className = "form-status error";
+      rosterUploadBtn.disabled = false;
+      return;
+    }
+
+    // 같은 대회에 이미 등록된 신청이 있으면 중복 등록 여부를 확인
+    const { count: existing } = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("competition", competition);
+    if (existing > 0 && !confirm(`${competition}에는 이미 ${existing}건이 등록되어 있습니다.\n이번 파일의 ${parsed.length}건을 추가로 등록할까요? (같은 파일을 다시 올리면 중복됩니다)`)) {
+      rosterUploadStatus.textContent = "등록을 취소했습니다.";
+      rosterUploadStatus.className = "form-status";
       rosterUploadBtn.disabled = false;
       return;
     }
