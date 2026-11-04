@@ -590,8 +590,94 @@
     return tplCache[type];
   }
 
+
+  /* ============ 운영계획(hwpx) 읽기 — 업무실 "운영계획 불러오기" ============
+     올린 hwpx 의 본문(Contents/section*.xml)에서 문단 글자와 표를 뽑아
+     사업명·행사일·장소·대상·주제·주최/주관·예산표·세부일정을 찾아 돌려줌.
+     운영(안) 서식(Ⅳ 운영 개요 '일시: …', Ⅵ 예산표 '품목|원가통계비목|산출내역|예산액|비고')을 기준으로
+     하되 머리글 이름으로 열을 찾아 비슷한 서식도 읽음. 못 찾은 항목은 빈 값으로 둠. */
+  const numOf = s => { const m = String(s == null ? '' : s).replace(/[\s,]/g, '').match(/-?\d+(?:\.\d+)?/); return m ? Number(m[0]) : 0; };
+  const parseKDate = s => { const m = String(s || '').match(/(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/); return m ? `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}` : ''; };
+  const stripBullet = s => String(s || '').replace(/^[\s○❍□▷▶◦·ㆍ\-•※]+/, '').trim();
+
+  async function parsePlan(buf) {
+    if (!root.JSZip) throw new Error('JSZip 를 불러오지 못했습니다');
+    const zip = await root.JSZip.loadAsync(buf);
+    const secNames = Object.keys(zip.files).filter(n => /^Contents\/section\d+\.xml$/.test(n)).sort();
+    if (!secNames.length) throw new Error('한글(hwpx) 문서가 아닙니다');
+    const lines = []; const tables = [];
+    for (const n of secNames) {
+      const xml = await zip.file(n).async('string');
+      const doc = new root.DOMParser().parseFromString(xml, 'application/xml');
+      if (doc.getElementsByTagName('parsererror').length) throw new Error('문서 내용을 읽지 못했습니다');
+      kids(doc.documentElement, 'p').forEach(p => {
+        const tbls = desc(p, 'tbl');
+        if (tbls.length) {
+          tbls.forEach(tb => {
+            const rows = kids(tb, 'tr').map(tr => kids(tr, 'tc').map(tc => { const sub = cellSub(tc); return (sub ? kids(sub, 'p').map(x => textOf(x).trim()).filter(Boolean).join('\n') : textOf(tc).trim()); }));
+            if (rows.length) tables.push(rows);
+          });
+          // 표 밖 글자(머리 제목표 안 글자 등)도 줄로 남김: 표 한 칸짜리는 제목 후보
+          tbls.forEach(tb => { const rs = kids(tb, 'tr'); if (rs.length === 1) { const t = textOf(rs[0]).trim(); if (t) lines.push(t); } });
+        } else {
+          const t = textOf(p).replace(/\s+$/g, '');
+          if (t.trim()) lines.push(t);
+        }
+      });
+    }
+    const pick = re => { for (const l of lines) { const m = stripBullet(l).match(re); if (m) return m[1].trim(); } return ''; };
+    let name = pick(/^(?:행사명|사업명|대회명)\s*[:：]\s*(.+)$/);
+    if (!name) {
+      const t = lines.map(stripBullet).find(l => /(운영\(안\)|운영계획|추진계획|시행계획)\s*$/.test(l));
+      name = t ? t.replace(/\s*(운영\(안\)|운영계획|추진계획|시행계획)\s*$/, '').trim() : '';
+    }
+    const dateLine = pick(/^일시\s*[:：]\s*(.+)$/);
+    const event_date = parseKDate(dateLine);
+    const timeM = dateLine.replace(/^\s*\d{4}\s*[.\-/]\s*\d{1,2}\s*[.\-/]\s*\d{1,2}\.?\s*(\([^)]*\))?\s*/, '').trim();
+    const place = pick(/^장소\s*[:：]\s*(.+)$/);
+    const theme = pick(/^주제\s*[:：]\s*(.+)$/);
+    const host = pick(/^주최\s*\/?\s*주관\s*[:：]\s*(.+)$/);
+    let target = pick(/^대상\s*[:：]\s*(.+)$/);
+    if (!target) {   // '○ 대상' 아래 '- …' 줄들
+      const i = lines.findIndex(l => /^\s*[○❍]?\s*대상\s*$/.test(l));
+      if (i >= 0) { const t = []; for (let j = i + 1; j < lines.length && /^\s*-\s/.test(lines[j]); j++) t.push(stripBullet(lines[j])); target = t.join(', '); }
+    }
+    const kindSrc = name + ' ' + theme;
+    const kind = /축제/.test(kindSrc) ? '축제' : /특강/.test(kindSrc) ? '특강' : /연수|워크숍/.test(kindSrc) ? '연수' : /리그/.test(kindSrc) ? '리그' : /대회|경기|마라톤|체전/.test(kindSrc) ? '대회' : '기타';
+
+    // 예산표: 머리행에 '예산액'(또는 '품목'+'산출')이 있는 표
+    const budget = [];
+    for (const rows of tables) {
+      const hi = rows.findIndex(r => r.some(c => /예산액|금액/.test(c)) && r.some(c => /품목|항목|내용/.test(c)));
+      if (hi < 0) continue;
+      const h = rows[hi];
+      const col = (re, d) => { const i = h.findIndex(c => re.test(c)); return i >= 0 ? i : d; };
+      const ci = { item: col(/품목|항목|내용/, 0), cat: col(/비목|구분/, 1), calc: col(/산출/, 2), amt: col(/예산액|금액/, 3), note: col(/비고/, 4) };
+      for (const r of rows.slice(hi + 1)) {
+        const item = (r[ci.item] || '').trim();
+        if (!item || /^합\s*계|^소\s*계|예산 미편성/.test(item.replace(/\s/g, ' ')) || /^합\s*계$/.test(item.replace(/\s/g, ''))) continue;
+        const calc = (r[ci.calc] || '').replace(/\n/g, ' ').trim();
+        const mm = calc.match(/([\d,]+)\s*원\s*[*×xX]\s*([\d,.]+)/);
+        budget.push({ item, category: (r[ci.cat] || '').trim(), calc, unit_price: mm ? numOf(mm[1]) : 0, qty: mm ? numOf(mm[2]) : 0, amount: numOf(r[ci.amt]), note: (r[ci.note] || '').replace(/\n/g, ' ').trim() });
+      }
+      if (budget.length) break;
+    }
+    // 세부일정표: 머리행에 '시간'과 '내용'(또는 '세부')이 있는 표 → "시간 내용" 줄
+    const schedule = [];
+    for (const rows of tables) {
+      const hi = rows.findIndex(r => r.some(c => /^시\s*간/.test(c)) && r.some(c => /내\s*용|세부/.test(c)));
+      if (hi < 0) continue;
+      rows.slice(hi + 1).forEach(r => { const t = (r[0] || '').trim(); const c = r.slice(1).map(x => x.replace(/\n/g, ' ').trim()).filter(Boolean).join(' '); if (t || c) schedule.push([t, c].filter(Boolean).join('  ')); });
+      if (schedule.length) break;
+    }
+    const memo = [theme && `주제: ${theme}`, host && `주최/주관: ${host}`, timeM && /\d/.test(timeM) && `시간: ${timeM}`,
+      schedule.length ? '[세부일정]\n' + schedule.join('\n') : ''].filter(Boolean).join('\n');
+    return { name, kind, event_date, place, target, theme, host, time: timeM, memo, budget, schedule,
+      found: { name: !!name, event_date: !!event_date, place: !!place, target: !!target, budget: budget.length } };
+  }
+
   const api = { TEMPLATES, DOC_LABEL, buildPlan, buildDetail, buildOnepage, buildResults, resultsModel, build: (type, f, data, opts) => BUILDERS[type](f, data, opts),
-    hasTemplate, previewHtml, planModel, detailModel, onepageModel, schoolStatus, scheduleRows, timeRange, estimateLines, fileName };
+    hasTemplate, parsePlan, previewHtml, planModel, detailModel, onepageModel, schoolStatus, scheduleRows, timeRange, estimateLines, fileName };
   root.HwpxDocs = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
