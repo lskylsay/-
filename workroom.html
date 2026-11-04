@@ -37,6 +37,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .brand{font-family:var(--num);font-size:24px;letter-spacing:.5px;padding:4px 10px 18px}
 .brand small{display:block;font-family:var(--f);font-size:12px;opacity:.75;font-weight:500}
 .nav button{all:unset;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:500;color:rgba(255,255,255,.85)}
+.nav a.nav-home{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-weight:500;color:rgba(255,255,255,.85);text-decoration:none;margin-top:10px;border-top:1px solid rgba(255,255,255,.15)}
+.nav a.nav-home:hover{background:rgba(255,255,255,.08)}
 .nav button:hover{background:rgba(255,255,255,.08)}
 .nav button[aria-current="page"]{background:#fff;color:var(--turf);font-weight:700}
 .nav{display:flex;flex-direction:column;gap:2px}
@@ -154,6 +156,8 @@ dialog .df{padding:12px 20px;border-top:1px solid var(--line);display:flex;gap:8
   .nav{flex-direction:row;width:100%;justify-content:space-around}
   .nav button{flex-direction:column;gap:2px;font-size:11px;padding:6px 4px}
   .nav button svg{width:20px;height:20px}
+  .nav a.nav-home{flex-direction:column;gap:2px;font-size:11px;padding:6px 4px;margin-top:0;border-top:0}
+  .nav a.nav-home svg{width:20px;height:20px}
   main{padding:18px 14px 110px}
   .paper{padding:20px 16px}
 }
@@ -289,7 +293,7 @@ function renderLogin(msg){
 function renderShell(){
   $('#root').innerHTML = `<div class="app"><aside class="side">
     <div class="brand">업무실<small>${CONFIG.TEAM}</small></div>
-    <nav class="nav">${NAV.map(([k,l,i]) => `<button data-v="${k}">${icon(i)}<span>${l}</span></button>`).join('')}</nav>
+    <nav class="nav">${NAV.map(([k,l,i]) => `<button data-v="${k}">${icon(i)}<span>${l}</span></button>`).join('')}<a class="nav-home" href="index.html">${icon('home')}<span>처음화면</span></a></nav>
     <div class="who">${esc(S.user.email)}<button id="lo">로그아웃</button></div>
   </aside><main id="view"></main></div>`;
   document.querySelectorAll('.nav button').forEach(b => b.onclick = () => go(b.dataset.v));
