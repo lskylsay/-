@@ -22,7 +22,7 @@
 | `results.html` | `script.js` | 대회 결과 공개 조회 (RPC `get_public_results`) |
 | `guidelines.html` | `guidelines.js` | 대회요강 게시판 (`guidelines`, storage `guideline-files`). `preview_path`(미리보기용 PDF)가 있으면 제목 클릭 시 화면 안 모달로 PDF 표시(원본 다운로드·닫기·Esc), 없으면 바로 다운로드 |
 | `schoolpe.html`, `schoolpe-*.html` | `schoolpe-board.js` | 학교체육업무지원 게시판. 각 페이지가 `window.SCHOOLPE_CATEGORY`를 지정 (`school_pe_posts`, storage `schoolpe-files`) |
-| `teams.html`, `activity.html`, `policy.html` | `schoolpe-board.js` | 처음화면 선택 3·4·5 게시판 (학교운동부 운영 현황 / 학교체육활성화 현황 / 학교체육 정책 현황). schoolpe 게시판과 같은 구조, `window.SCHOOLPE_CATEGORY` = `teams` / `activity` / `policy`, 같은 `school_pe_posts`·`schoolpe-files` 사용. 글이 없을 때 문구는 `window.SCHOOLPE_EMPTY_TEXT`로 지정. admin.html '학교체육업무지원 관리' 탭에서 같은 방식으로 업로드 |
+| `teams.html`, `activity.html`, `policy.html` | `schoolpe-board.js` | 처음화면 선택 3·4·5 게시판 (학교운동부 운영 현황 / 학교체육활성화 현황 / 학교체육 정책 현황). schoolpe 게시판과 같은 구조, `window.SCHOOLPE_CATEGORY` = `teams` / `activity` / `policy`, 같은 `school_pe_posts`·`schoolpe-files` 사용. 글이 없을 때 문구는 `window.SCHOOLPE_EMPTY_TEXT`로 지정. admin.html 탭 '선택3 학교운동부 운영 현황 관리' / '선택4 학교체육활성화 현황 관리' / '선택5 학교체육 정책 현황 관리'에서 각각 업로드·삭제(학교체육업무지원 관리 화면을 카테고리 하나로 고정해 재사용, `setSpMode`; '학교체육업무지원 관리' 탭은 기존 5개 게시판만 표시) |
 
 공통 파일:
 - `config.js` — `window.SUPABASE_URL`, `SUPABASE_ANON_KEY`(publishable 키, 공개돼도 되는 값), `ADMIN_EMAIL`. 모든 데이터 페이지에서 모듈 스크립트보다 먼저 `<script src="config.js">`로 로드.
