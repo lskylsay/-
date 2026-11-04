@@ -326,11 +326,12 @@ function taskDialog(t, after, preset={}){
     <label class="f">기한<input type="date" id="td" value="${esc(t.due_date||'')}"></label>
     <label class="f">분류<input type="text" id="tc" value="${esc(t.category||'')}" placeholder="공문, 예산, 현장…"></label>
     <label class="f">사업<select id="tp"><option value="">(없음)</option>${S.projects.map(p => `<option value="${p.id}" ${p.id==t.project_id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>
-    <label class="f" style="grid-column:1/-1">메모<textarea id="tm" style="min-height:60px">${esc(t.memo||'')}</textarea></label></div>
+    <label class="f" style="grid-column:1/-1">메모<textarea id="tm" style="min-height:60px">${esc(t.memo||'')}</textarea></label>${pubBox(t)}</div>
     <div class="df">${isNew?'':'<button class="btn danger" value="del" type="button" id="tdel">삭제</button><span class="spacer"></span>'}<button class="btn" value="cancel" formnovalidate>취소</button><button class="btn pri" id="tsave" value="ok">저장</button></div></form>`;
   d.showModal();
   $('#tsave').onclick = async e => { e.preventDefault(); if (!$('#tt').value.trim()) return;
     const row = { title:$('#tt').value.trim(), due_date:$('#td').value||null, category:$('#tc').value.trim(), project_id: $('#tp').value ? +$('#tp').value : null, memo:$('#tm').value };
+    if ($('#pubchk')) row.is_public = $('#pubchk').checked;
     if (isNew){ const [r] = await q(sb.from('admin_tasks').insert(row).select()); S.tasks.push(r); }
     else { await q(sb.from('admin_tasks').update(row).eq('id', t.id)); Object.assign(t,row); }
     S.tasks.sort((a,b) => (a.due_date||'9').localeCompare(b.due_date||'9'));
@@ -372,6 +373,8 @@ async function vHome(){
     $('#appSum').innerHTML = `<div class="stats"><div class="stat"><b>${apps.length}</b><span>전체 신청</span></div>${Object.entries(by).map(([k,n]) => `<div class="stat"><b>${n}</b><span>${esc(k)}</span></div>`).join('')}</div>`;
   } catch(e){ $('#appSum').textContent = '신청 데이터를 읽지 못했습니다.'; }
 }
+const hasPub = () => S.projects.concat(S.tasks).some(r => 'is_public' in r);   // DB에 is_public 칸이 있을 때만 '대회 일정에 공개' 체크 표시
+const pubBox = (r) => hasPub() ? `<label class="f" style="grid-column:1/-1;flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="pubchk" ${r.is_public?'checked':''} style="width:auto"> 홈페이지 '대회 일정'에 공개 <span class="small muted">(제목·날짜·장소만 공개됩니다)</span></label>` : '';
 const groupCount = (arr, fn) => arr.reduce((m,x) => (m[fn(x)] = (m[fn(x)]||0)+1, m), {});
 
 /* ============ 사업·워크플로우 ============ */
@@ -405,12 +408,13 @@ function projDialog(p){
     <label class="f">장소<input type="text" id="pl" value="${esc(p.place||'')}"></label>
     <label class="f" style="grid-column:1/-1">대상<input type="text" id="pt" value="${esc(p.target||'')}" placeholder="관내 초4~고3 학생 및 교직원"></label>
     ${isNew ? `<label class="f" style="grid-column:1/-1">워크플로우 적용<select id="pw"><option value="">적용 안 함</option>${S.workflows.map(w => `<option value="${w.id}">${esc(w.name)} (${w.steps.length}단계)</option>`).join('')}</select></label>` : ''}
-    <label class="f" style="grid-column:1/-1">메모<textarea id="pm" style="min-height:60px">${esc(p.memo||'')}</textarea></label></div>
+    <label class="f" style="grid-column:1/-1">메모<textarea id="pm" style="min-height:60px">${esc(p.memo||'')}</textarea></label>${pubBox(p)}</div>
     <div class="df">${isNew?'':'<button class="btn danger" type="button" id="pdel">사업 삭제</button><span class="spacer"></span>'}<button class="btn" value="cancel" formnovalidate>취소</button><button class="btn pri" id="psave">저장</button></div></form>`;
   if (isNew){ const kindSel = $('#pk', d), wfSel = $('#pw', d); const pick = () => { const w = S.workflows.find(w => w.kind === kindSel.value || (kindSel.value==='축제'&&w.kind==='대회') || (kindSel.value==='연수'&&w.kind==='특강')); wfSel.value = w ? w.id : ''; }; kindSel.onchange = pick; pick(); }
   d.showModal();
   $('#psave').onclick = async e => { e.preventDefault(); if (!$('#pn').value.trim()) return;
     const row = { name:$('#pn').value.trim(), kind:$('#pk').value, event_date:$('#pd').value||null, status:$('#ps').value, place:$('#pl').value, target:$('#pt').value, memo:$('#pm').value };
+    if ($('#pubchk')) row.is_public = $('#pubchk').checked;
     if (isNew){ const [r] = await q(sb.from('admin_projects').insert(row).select()); S.projects.push(r); S.selProject = r.id;
       const wid = $('#pw').value; if (wid) await applyWorkflow(r, S.workflows.find(w => w.id == wid)); }
     else { await q(sb.from('admin_projects').update(row).eq('id', p.id)); Object.assign(p,row); }
