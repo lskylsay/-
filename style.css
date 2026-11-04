@@ -1223,9 +1223,14 @@ body.overlay-open {
 /* ---------- 관문 페이지 선택 카드 ---------- */
 .gateway-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(6, 1fr);
   gap: 24px;
 }
+
+.gateway-lg { grid-column: span 3; }
+.gateway-sm { grid-column: span 2; padding: 26px 22px; }
+.gateway-sm h2 { font-size: 1.2rem; }
+.gateway-sm p { font-size: 0.88rem; }
 
 .gateway-card {
   display: block;
@@ -1263,8 +1268,15 @@ body.overlay-open {
   font-size: 0.92rem;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
+  .gateway-grid { grid-template-columns: 1fr 1fr; }
+  .gateway-lg, .gateway-sm { grid-column: auto; }
+  .gateway-grid .gateway-card:last-child { grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) {
   .gateway-grid { grid-template-columns: 1fr; }
+  .gateway-grid .gateway-card:last-child { grid-column: auto; }
 }
 
 /* ---------- 드래그 앤 드롭 파일 첨부 ---------- */

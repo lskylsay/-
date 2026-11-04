@@ -1052,6 +1052,9 @@ const CATEGORY_LABELS = {
   club: "다. 학교스포츠클럽대회",
   youth: "라. 전국소년체육대회",
   national: "마. 전국체육대회",
+  teams: "학교운동부 운영 현황",
+  activity: "학교체육활성화 현황",
+  policy: "학교체육 정책 현황",
 };
 
 const schoolpeRefreshBtn = document.getElementById("schoolpeRefreshBtn");

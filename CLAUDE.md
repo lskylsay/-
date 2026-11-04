@@ -13,7 +13,7 @@
 
 | 페이지 | 스크립트 | 역할 |
 |---|---|---|
-| `index.html` | — | 홈 (대회 소개, 일정, 종목). 히어로 안(`.wrap.hero-with-apps`)에 앱 아이콘 묶음 `.hero-apps`(스톱워치 → 대진표 → 스코어보드 순, 모두 `.hero-stopwatch` 구조: 흰 원 + 글자)가 있고 누르면 각각 claude.ai 스톱워치 / 충청북도 학교스포츠클럽 대진표 생성 / 스코어보드(`claude.ai/artifact/Sj5rWFNS7xpvwJ5BwM2VmD`) 페이지가 새 창으로 열림. 위치는 `.hero-apps`가 담당(묶음 가운데가 가로 65%). 휴대폰(640px 이하)에서는 "홈페이지 방문을 환영합니다" 바로 아래에 세 아이콘이 원 아래 글자 세로형으로 한 줄에 나란히 |
+| `index.html` | — | 홈. 선택 카드 5개(`.gateway-card`; 1·2 `.gateway-lg` 6칸 중 3칸씩, 3·4·5 `.gateway-sm` 2칸씩, 태블릿 2열, 640px 이하 1열): 학교체육업무지원 / 대회 참가현황 및 결과 공유(contest.html) / 학교운동부 / 학교체육활성화 / 정책 현황. 히어로 안(`.wrap.hero-with-apps`)에 앱 아이콘 묶음 `.hero-apps`(스톱워치 → 대진표 → 스코어보드 순, 모두 `.hero-stopwatch` 구조: 흰 원 + 글자)가 있고 누르면 각각 claude.ai 스톱워치 / 충청북도 학교스포츠클럽 대진표 생성 / 스코어보드(`claude.ai/artifact/Sj5rWFNS7xpvwJ5BwM2VmD`) 페이지가 새 창으로 열림. 위치는 `.hero-apps`가 담당(묶음 가운데가 가로 65%). 휴대폰(640px 이하)에서는 "홈페이지 방문을 환영합니다" 바로 아래에 세 아이콘이 원 아래 글자 세로형으로 한 줄에 나란히 |
 | `contest.html` | — | 대회 안내 |
 | `apply.html` | `apply.js` | 참가 신청 (개인 / 트랙마라톤 교사 일괄 엑셀 신청) → `applications`, `bulk_applications`, storage `bulk-uploads` |
 | `admin.html` | `admin.js` | 관리자 (GitHub OAuth 로그인, `ADMIN_EMAIL`만): 신청 관리·배번 등록, 대회 결과 관리(엑셀 업로드; 결과 표 열 순서는 대회·종목/부문·배번·학교·이름·기록·날짜·순위·비고·선택이며, 배번·학교는 결과의 `applications_id`로 `applications`(`bib_number`, `class_no`; `bib_number`가 비어 있으면 `members` 글자의 "배번 N"에서 읽음 — 운영 DB는 대부분 이 방식)를 200건씩 나눠 불러와 붙임(없으면 '-'), 정렬은 대회→종목/부문→배번(없으면 맨 뒤). '총 N건' 아래 줄에서 범위(대회 전체/대회별/체크한 기록만 — 체크하면 자동으로 '체크한 기록만', 체크가 없으면 '대회 전체')를 골라 **엑셀(.xlsx)**(SheetJS; '전체' 시트 + 종목/부문별 시트, 기록은 글자 그대로)·**한글(.hwpx)**(`HwpxDocs.buildResults`)로 내려받음, 0건이면 "내려받을 기록이 없습니다", 파일명 `대회결과_{대회명|전체|선택}_{YYYYMMDD}`. 맨 오른쪽 '전체선택' 체크 + '선택 삭제'로 한꺼번에 삭제 — 200건씩 나눠 지우고 실제 삭제된 행 수를 확인해 권한 문제로 0건 처리되면 알림), 대회요강·학교체육 게시글 업로드 |
@@ -22,6 +22,7 @@
 | `results.html` | `script.js` | 대회 결과 공개 조회 (RPC `get_public_results`) |
 | `guidelines.html` | `guidelines.js` | 대회요강 게시판 (`guidelines`, storage `guideline-files`). `preview_path`(미리보기용 PDF)가 있으면 제목 클릭 시 화면 안 모달로 PDF 표시(원본 다운로드·닫기·Esc), 없으면 바로 다운로드 |
 | `schoolpe.html`, `schoolpe-*.html` | `schoolpe-board.js` | 학교체육업무지원 게시판. 각 페이지가 `window.SCHOOLPE_CATEGORY`를 지정 (`school_pe_posts`, storage `schoolpe-files`) |
+| `teams.html`, `activity.html`, `policy.html` | `schoolpe-board.js` | 처음화면 선택 3·4·5 게시판 (학교운동부 운영 현황 / 학교체육활성화 현황 / 학교체육 정책 현황). schoolpe 게시판과 같은 구조, `window.SCHOOLPE_CATEGORY` = `teams` / `activity` / `policy`, 같은 `school_pe_posts`·`schoolpe-files` 사용. 글이 없을 때 문구는 `window.SCHOOLPE_EMPTY_TEXT`로 지정. admin.html '학교체육업무지원 관리' 탭에서 같은 방식으로 업로드 |
 
 공통 파일:
 - `config.js` — `window.SUPABASE_URL`, `SUPABASE_ANON_KEY`(publishable 키, 공개돼도 되는 값), `ADMIN_EMAIL`. 모든 데이터 페이지에서 모듈 스크립트보다 먼저 `<script src="config.js">`로 로드.

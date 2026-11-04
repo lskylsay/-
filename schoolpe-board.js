@@ -27,7 +27,7 @@ async function loadPosts() {
   }
 
   if (!data || data.length === 0) {
-    listEl.innerHTML = '<p class="empty-note">등록된 게시물이 없습니다.</p>';
+    listEl.innerHTML = `<p class="empty-note">${window.SCHOOLPE_EMPTY_TEXT || "등록된 게시물이 없습니다."}</p>`;
     return;
   }
 
