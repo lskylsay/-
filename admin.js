@@ -1201,6 +1201,7 @@ function setSpMode(mode) {
   spCategory.disabled = !!mode;
   document.getElementById("spFormTitle").textContent = mode ? `${CATEGORY_LABELS[mode]} — 새 자료 등록` : "새 게시물 등록";
   spFilterRow.style.display = mode ? "none" : "";
+  document.getElementById("spSportField").style.display = mode === "teams" ? "" : "none";   // 학교운동부 운영 현황은 종목별 탭으로 나뉨
   if (schoolpeLoaded) { renderSpFilters(); renderSpList(); }
 }
 
@@ -1292,6 +1293,15 @@ spUploadBtn.addEventListener("click", async () => {
     spUploadStatus.className = "form-status error";
     return;
   }
+  // 학교운동부 운영 현황: 종목을 골라야 하고, 제목 앞에 [종목]을 붙여 종목 탭에 모이게 함
+  const sportSel = document.getElementById("spSport");
+  const teamSport = category === "teams" ? sportSel.value : "";
+  if (category === "teams" && !teamSport) {
+    spUploadStatus.textContent = "종목을 선택해 주세요.";
+    spUploadStatus.className = "form-status error";
+    return;
+  }
+  const fullTitle = teamSport ? `[${teamSport}] ${title}` : title;
 
   spUploadBtn.disabled = true;
   spUploadStatus.textContent = "등록 중…";
@@ -1315,7 +1325,7 @@ spUploadBtn.addEventListener("click", async () => {
   const { error } = await supabase.from("school_pe_posts").insert([
     {
       category,
-      title,
+      title: fullTitle,
       content: content || null,
       file_path: filePath,
       file_name: fileName,
@@ -1338,6 +1348,7 @@ spUploadBtn.addEventListener("click", async () => {
   document.getElementById("spFileName").textContent = "";
   document.getElementById("spFileDropzone").classList.remove("has-file");
   spCategory.value = spMode || "";
+  document.getElementById("spSport").value = "";
   loadSchoolpeAdmin();
 });
 

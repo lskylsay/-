@@ -26,8 +26,52 @@ async function loadPosts() {
     return;
   }
 
+  allPosts = data || [];
+  if (!SPORTS) { renderPosts(allPosts, window.SCHOOLPE_EMPTY_TEXT || "등록된 게시물이 없습니다."); return; }
+  const fromHash = decodeURIComponent((location.hash || "").slice(1));
+  activeTab = SPORTS.includes(fromHash) || fromHash === "공통" ? fromHash : SPORTS[0];
+  showTab();
+}
+
+// 종목 탭(window.SCHOOLPE_SPORTS)이 있는 게시판: 게시물 제목이 "[종목] 제목" 형식이면 그 종목 탭에 모아 보여줍니다.
+// (관리자 화면의 종목 선택이 제목 앞에 [종목]을 붙여 등록합니다. [종목]이 없는 글은 '공통' 탭에 나옵니다.)
+const SPORTS = window.SCHOOLPE_SPORTS || null;
+const tabsEl = document.getElementById("boardTabs");
+let allPosts = [];
+let activeTab = null;
+
+function sportOf(p) {
+  const m = String(p.title || "").match(/^\[([^\]]+)\]\s*/);
+  return m && SPORTS && SPORTS.includes(m[1]) ? m[1] : null;
+}
+const stripSport = (p) => (sportOf(p) ? { ...p, title: p.title.replace(/^\[[^\]]+\]\s*/, "") } : p);
+
+function renderTabs() {
+  if (!SPORTS || !tabsEl) return;
+  const hasCommon = allPosts.some((p) => !sportOf(p));
+  const tabs = hasCommon ? [...SPORTS, "공통"] : SPORTS;
+  tabsEl.innerHTML = "";
+  tabs.forEach((t) => {
+    const n = allPosts.filter((p) => (t === "공통" ? !sportOf(p) : sportOf(p) === t)).length;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "filter-btn" + (t === activeTab ? " active" : "");
+    b.textContent = n ? `${t} ${n}` : t;
+    b.addEventListener("click", () => { activeTab = t; history.replaceState(null, "", "#" + encodeURIComponent(t)); showTab(); });
+    tabsEl.appendChild(b);
+  });
+}
+
+function showTab() {
+  renderTabs();
+  const list = allPosts.filter((p) => (activeTab === "공통" ? !sportOf(p) : sportOf(p) === activeTab)).map(stripSport);
+  const base = window.SCHOOLPE_EMPTY_TEXT || "등록된 게시물이 없습니다.";
+  renderPosts(list, activeTab === "공통" ? base : base.replace("등록된 자료", `등록된 ${activeTab} 자료`));
+}
+
+function renderPosts(data, emptyText) {
   if (!data || data.length === 0) {
-    listEl.innerHTML = `<p class="empty-note">${window.SCHOOLPE_EMPTY_TEXT || "등록된 게시물이 없습니다."}</p>`;
+    listEl.innerHTML = `<p class="empty-note">${emptyText}</p>`;
     return;
   }
 
@@ -76,5 +120,6 @@ function isImageFile(name) {
     })
     .join("");
 }
+
 
 loadPosts();
