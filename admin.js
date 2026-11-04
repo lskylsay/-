@@ -1202,7 +1202,8 @@ function setSpMode(mode) {
   document.getElementById("spFormTitle").textContent = mode ? `${CATEGORY_LABELS[mode]} — 새 자료 등록` : "새 게시물 등록";
   spFilterRow.style.display = mode ? "none" : "";
   document.getElementById("spSportField").style.display = mode === "teams" ? "" : "none";
-  document.getElementById("spSampleLink").style.display = mode === "teams" ? "inline-block" : "none";   // 학교운동부 운영 현황은 종목별 탭으로 나뉨
+  document.getElementById("spSampleLink").style.display = mode === "teams" ? "inline-block" : "none";
+  document.getElementById("spSampleNote").style.display = mode === "teams" ? "" : "none";   // 학교운동부 운영 현황은 종목별 탭으로 나뉨
   if (schoolpeLoaded) { renderSpFilters(); renderSpList(); }
 }
 
