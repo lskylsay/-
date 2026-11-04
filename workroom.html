@@ -342,20 +342,20 @@ const progress = pid => { const ts = S.tasks.filter(t => t.project_id === pid); 
 
 /* ============ 오늘(대시보드) ============ */
 async function vHome(){
+  S.calBack = vHome;
   const v = $('#view'), today = TODAY(), wk = addDays(today, 7);
-  const up = S.projects.filter(p => p.event_date && p.event_date >= addDays(today,-14) && p.status !== '완료').slice(0,6);
+  const up = S.projects.filter(p => p.status !== '완료' && p.status !== '보류').sort((a,b) => (a.event_date||'9').localeCompare(b.event_date||'9'));
   const late = S.tasks.filter(t => !t.done && t.due_date && t.due_date < today);
   const now = S.tasks.filter(t => !t.done && t.due_date && t.due_date >= today && t.due_date <= wk);
   const planned = S.budget.reduce((s,b) => s + (+b.planned||0), 0), spent = S.budget.reduce((s,b) => s + (+b.spent||0), 0);
   const d = new Date();
   v.innerHTML = `<h1>${d.getMonth()+1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</h1>
     <p class="sub">${late.length ? `기한이 지난 일 ${late.length}건, ` : ''}이번 주 할 일 ${now.length}건이 있습니다.</p>
-    ${up.length ? `<div class="bibs">${up.map(p => `<button class="bib ${diffDays(p.event_date,today)<=14&&diffDays(p.event_date,today)>=0?'sponsor':''}" data-p="${p.id}">
-      <div class="meta">${esc(p.kind||'')} · ${kdate(p.event_date)}</div>
-      <div class="dd ${diffDays(p.event_date,today)<=7&&diffDays(p.event_date,today)>=0?'soon':''}">${ddLabel(p.event_date)}</div>
-      <div class="nm">${esc(p.name)}</div><div class="meta">${esc(p.place||'')}</div>
-      <div class="bar"><i style="width:${progress(p.id)}%"></i></div><div class="meta" style="margin-top:4px">준비 ${progress(p.id)}%</div></button>`).join('')}</div>`
-      : `<div class="empty" style="margin-bottom:18px">다가오는 사업이 없습니다. <button class="btn pri" id="goP">사업 등록하기</button></div>`}
+    <section class="panel" style="margin-bottom:16px"><div class="row"><h2 style="margin:0">추진 중인 사업 <span class="small muted">${up.length}건</span></h2><span class="spacer"></span><button class="btn" id="goP">사업 관리</button></div>
+      ${up.length ? `<div class="tw" style="margin-top:8px"><table><thead><tr><th>사업명</th><th>유형</th><th>행사일</th><th>D-day</th><th>상태</th><th class="num">준비율</th></tr></thead><tbody>
+        ${up.map(p => `<tr data-p="${p.id}" style="cursor:pointer"><td><b>${esc(p.name)}</b>${p.place ? `<div class="small muted">${esc(p.place)}</div>` : ''}</td><td>${esc(p.kind||'')}</td><td>${p.event_date ? kdate(p.event_date) : ''}</td><td>${p.event_date ? ddLabel(p.event_date) : ''}</td><td>${esc(p.status||'')}</td><td class="num">${progress(p.id)}%</td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="empty" style="margin-top:10px">추진 중인 사업이 없습니다. 사업·워크플로우에서 등록해 보세요.</div>'}</section>
+    <div style="margin-bottom:16px">${calPanelHtml()}</div>
     <div class="grid g2">
       <section class="panel"><div class="row"><h2 style="margin:0">처리할 일</h2><span class="spacer"></span><button class="btn" id="addT">+ 할 일</button></div>
         ${late.length+now.length ? `<ul class="tasks" id="hl">${late.concat(now).map(t => taskItem(t)).join('')}</ul>` : '<div class="empty" style="margin-top:10px">이번 주 남은 일이 없습니다.</div>'}</section>
@@ -363,8 +363,9 @@ async function vHome(){
         <h2 style="margin-top:20px">예산 집행</h2>
         ${planned ? `<div class="stats"><div class="stat"><b>${Math.round(spent/planned*100)}%</b><span>전체 집행률</span></div><div class="stat"><b>${won(spent)}</b><span>집행액(원)</span></div><div class="stat"><b>${won(planned-spent)}</b><span>잔액(원)</span></div></div>` : '<p class="muted small">등록된 예산이 없습니다.</p>'}
       </section></div>`;
-  v.querySelectorAll('[data-p]').forEach(b => b.onclick = () => go('projects', +b.dataset.p));
-  $('#goP') && ($('#goP').onclick = () => go('projects'));
+  v.querySelectorAll('tr[data-p]').forEach(b => b.onclick = () => go('projects', +b.dataset.p));
+  $('#goP').onclick = () => go('projects');
+  bindCal(v);
   $('#addT').onclick = () => taskDialog(null, vHome);
   $('#hl') && bindTasks($('#hl'), vHome);
   try { const apps = await loadApps(); const by = groupCount(apps, a => `${a.competition} · ${a.sportShort}`);
@@ -513,33 +514,43 @@ function wfDialog(w){
 }
 
 /* ============ 일정·할일 ============ */
-function vCalendar(){
-  const v = $('#view'); const today = TODAY();
+// 캘린더 패널(일정·할일 탭과 오늘 탭에서 함께 씀). 다시 그릴 때는 S.calBack(= 지금 화면을 그리는 함수)을 부름
+function calPanelHtml(){
+  const today = TODAY();
   if (!S.calMonth) S.calMonth = today.slice(0,7);
   const [y,m] = S.calMonth.split('-').map(Number); const first = new Date(y, m-1, 1); const start = new Date(first); start.setDate(1 - first.getDay());
   const cells = []; for (let i=0;i<42;i++){ const d = new Date(start); d.setDate(start.getDate()+i); cells.push(iso(d)); }
   const ev = {}; S.tasks.forEach(t => t.due_date && (ev[t.due_date] = ev[t.due_date]||[]).push(t));
   const pv = {}; S.projects.forEach(p => p.event_date && (pv[p.event_date] = pv[p.event_date]||[]).push(p));
+  return `<section class="panel"><div class="row" style="margin-bottom:10px"><button class="btn" id="pm" aria-label="이전 달">‹</button><h2 style="margin:0;min-width:110px;text-align:center">${y}년 ${m}월</h2><button class="btn" id="nm" aria-label="다음 달">›</button><span class="spacer"></span><button class="btn ghost" id="tm">오늘</button><button class="btn pri" id="cadd" aria-label="새 일정 등록" title="새 일정 등록">+</button></div>
+      <div class="cal">${WD.map(w => `<div class="h">${w}</div>`).join('')}${cells.map(c => `<div class="d ${c.slice(0,7)!==S.calMonth?'o':''} ${c===today?'td':''}" data-d="${c}"><span class="n">${+c.slice(8)}</span>
+        ${(pv[c]||[]).map(p => `<span class="ev p" data-pv="${p.id}" title="${esc(p.name)}">${esc(p.name)}</span>`).join('')}${(ev[c]||[]).slice(0,3).map(t => `<span class="ev ${t.done?'x':''}" data-tv="${t.id}" title="${esc(t.title)}">${esc(t.title)}</span>`).join('')}${(ev[c]||[]).length>3?`<span class="small muted">+${ev[c].length-3}</span>`:''}</div>`).join('')}</div></section>`;
+}
+function bindCal(root){
+  const today = TODAY(); const [y,m] = S.calMonth.split('-').map(Number); const back = () => S.calBack();
+  const mv = n => { const d = new Date(y, m-1+n, 1); S.calMonth = iso(d).slice(0,7); back(); };
+  $('#pm', root).onclick = () => mv(-1); $('#nm', root).onclick = () => mv(1); $('#tm', root).onclick = () => { S.calMonth = today.slice(0,7); back(); };
+  $('#cadd', root).onclick = () => taskDialog(null, back);
+  root.querySelectorAll('[data-d]').forEach(c => c.onclick = () => taskDialog(null, back, { due_date:c.dataset.d }));
+  // 배너(일정 제목)를 누르면 세부 내용 보기 — 날짜 칸의 '할 일 추가'는 실행되지 않게 막음
+  root.querySelectorAll('[data-tv]').forEach(b => b.onclick = e => { e.stopPropagation(); eventDetail('task', b.dataset.tv); });
+  root.querySelectorAll('[data-pv]').forEach(b => b.onclick = e => { e.stopPropagation(); eventDetail('project', b.dataset.pv); });
+}
+function vCalendar(){
+  S.calBack = vCalendar;
+  const v = $('#view'); const today = TODAY();
   const open = S.tasks.filter(t => !t.done);
   const groups = [['지난 일', open.filter(t => t.due_date && t.due_date < today)],['오늘', open.filter(t => t.due_date === today)],
     ['이번 주', open.filter(t => t.due_date > today && t.due_date <= addDays(today,7))],['이후', open.filter(t => !t.due_date || t.due_date > addDays(today,7))]];
   v.innerHTML = `<h1>일정·할일</h1><p class="sub">날짜를 누르면 그날 기한으로 할 일을 추가합니다.</p>
     <div class="grid" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)" id="cg">
-    <section class="panel"><div class="row" style="margin-bottom:10px"><button class="btn" id="pm" aria-label="이전 달">‹</button><h2 style="margin:0;min-width:110px;text-align:center">${y}년 ${m}월</h2><button class="btn" id="nm" aria-label="다음 달">›</button><span class="spacer"></span><button class="btn ghost" id="tm">오늘</button><button class="btn pri" id="cadd" aria-label="새 일정 등록" title="새 일정 등록">+</button></div>
-      <div class="cal">${WD.map(w => `<div class="h">${w}</div>`).join('')}${cells.map(c => `<div class="d ${c.slice(0,7)!==S.calMonth?'o':''} ${c===today?'td':''}" data-d="${c}"><span class="n">${+c.slice(8)}</span>
-        ${(pv[c]||[]).map(p => `<span class="ev p" data-pv="${p.id}" title="${esc(p.name)}">${esc(p.name)}</span>`).join('')}${(ev[c]||[]).slice(0,3).map(t => `<span class="ev ${t.done?'x':''}" data-tv="${t.id}" title="${esc(t.title)}">${esc(t.title)}</span>`).join('')}${(ev[c]||[]).length>3?`<span class="small muted">+${ev[c].length-3}</span>`:''}</div>`).join('')}</div></section>
+    ${calPanelHtml()}
     <section class="panel"><div class="row"><h2 style="margin:0">남은 할 일</h2><span class="spacer"></span><button class="btn" id="at">+ 할 일</button></div>
       ${groups.map(([g,l]) => l.length ? `<h3 class="small muted" style="margin:14px 0 2px">${g} ${l.length}</h3><ul class="tasks">${l.map(t => taskItem(t)).join('')}</ul>` : '').join('') || '<div class="empty" style="margin-top:10px">남은 할 일이 없습니다.</div>'}
     </section></div>`;
   if (innerWidth < 900) $('#cg').style.gridTemplateColumns = '1fr';
-  const mv = n => { const d = new Date(y, m-1+n, 1); S.calMonth = iso(d).slice(0,7); vCalendar(); };
-  $('#pm').onclick = () => mv(-1); $('#nm').onclick = () => mv(1); $('#tm').onclick = () => { S.calMonth = today.slice(0,7); vCalendar(); };
   $('#at').onclick = () => taskDialog(null, vCalendar);
-  $('#cadd').onclick = () => taskDialog(null, vCalendar);
-  v.querySelectorAll('[data-d]').forEach(c => c.onclick = () => taskDialog(null, vCalendar, { due_date:c.dataset.d }));
-  // 배너(일정 제목)를 누르면 세부 내용 보기 — 날짜 칸의 '할 일 추가'는 실행되지 않게 막음
-  v.querySelectorAll('[data-tv]').forEach(b => b.onclick = e => { e.stopPropagation(); eventDetail('task', b.dataset.tv); });
-  v.querySelectorAll('[data-pv]').forEach(b => b.onclick = e => { e.stopPropagation(); eventDetail('project', b.dataset.pv); });
+  bindCal(v);
   bindTasks(v, vCalendar);
 }
 
@@ -551,7 +562,7 @@ function eventDetail(kind, id){
     d.innerHTML = `<form method="dialog"><div class="dh"><h2 style="margin:0">${esc(t.title)}</h2></div><div class="db">
       ${row('기한', t.due_date ? `${kdate(t.due_date)}${t.done ? '' : ' · ' + ddLabel(t.due_date)}` : '')}${row('상태', t.done ? '완료' : '진행 전')}${row('분류', t.category)}${row('사업', p && p.name)}${row('메모', t.memo)}</div>
       <div class="df"><button class="btn" value="cancel" formnovalidate>닫기</button><span class="spacer"></span><button class="btn pri" type="button" id="evedit">수정</button></div></form>`;
-    d.showModal(); $('#evedit').onclick = () => { d.close(); taskDialog(t, vCalendar); };
+    d.showModal(); $('#evedit').onclick = () => { d.close(); taskDialog(t, S.calBack || vCalendar); };
   } else {
     const p = S.projects.find(x => x.id == id); if (!p) return;
     d.innerHTML = `<form method="dialog"><div class="dh"><h2 style="margin:0">${esc(p.name)}</h2></div><div class="db">
