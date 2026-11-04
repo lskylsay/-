@@ -423,6 +423,9 @@ const adminSchoolpeTabBtn = document.getElementById("adminSchoolpeTabBtn");
 const adminTeamsTabBtn = document.getElementById("adminTeamsTabBtn");
 const adminActivityTabBtn = document.getElementById("adminActivityTabBtn");
 const adminPolicyTabBtn = document.getElementById("adminPolicyTabBtn");
+const adminContestGroupBtn = document.getElementById("adminContestGroupBtn");
+const adminContestSubRow = document.getElementById("adminContestSubRow");
+let lastContestTab = "roster";
 const rosterAdminSection = document.getElementById("rosterAdminSection");
 const resultsAdminSection = document.getElementById("resultsAdminSection");
 const guidelinesAdminSection = document.getElementById("guidelinesAdminSection");
@@ -438,6 +441,10 @@ let schoolpeLoaded = false;
 const SP_SINGLE_TABS = ["teams", "activity", "policy"];
 
 function showAdminTab(tab) {
+  const isContestTab = ["roster", "results", "guidelines"].includes(tab);
+  if (isContestTab) lastContestTab = tab;
+  adminContestGroupBtn.classList.toggle("active", isContestTab);
+  adminContestSubRow.style.display = isContestTab ? "" : "none";
   adminRosterTabBtn.classList.toggle("active", tab === "roster");
   adminResultsTabBtn.classList.toggle("active", tab === "results");
   adminGuidelinesTabBtn.classList.toggle("active", tab === "guidelines");
@@ -459,6 +466,7 @@ function showAdminTab(tab) {
   }
 }
 
+adminContestGroupBtn.addEventListener("click", () => showAdminTab(lastContestTab));
 adminRosterTabBtn.addEventListener("click", () => showAdminTab("roster"));
 adminResultsTabBtn.addEventListener("click", () => showAdminTab("results"));
 adminGuidelinesTabBtn.addEventListener("click", () => showAdminTab("guidelines"));
