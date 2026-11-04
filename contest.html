@@ -126,8 +126,10 @@
   </div>
 </footer>
 
+<script src="config.js"></script>
 <script>
-// 대회 일정 — 날짜를 바꾸려면 아래 목록만 고치면 됩니다. (start/end: YYYY-MM-DD, end가 없으면 하루 일정)
+// 대회 일정 — 업무실에서 '대회 일정에 공개'로 체크한 사업·할 일(DB 함수 get_public_schedule)을 불러와 보여줍니다.
+// 공개된 항목이 없거나 불러오지 못하면 아래 EVENTS 목록(기본 일정)을 보여줍니다. (start/end: YYYY-MM-DD, end가 없으면 하루 일정)
 (function () {
   var EVENTS = [
     { start: '2026-09-21', label: '트랙마라톤 축제 · 육상대회 접수 동시 시작' },
@@ -143,9 +145,6 @@
   function dateText(e) { return e.end ? md(e.start) + ' – ' + md(e.end) : md(e.start) + ' (' + WD[d(e.start).getDay()] + ')'; }
   var now = new Date(); var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  var past = [], next = [];
-  EVENTS.forEach(function (e) { (d(e.end || e.start) < today ? past : next).push(e); });
-  past.reverse(); // 지난 일정은 최근 것이 위로
   function render(el, list, isNext) {
     if (!list.length) { el.innerHTML = '<li class="sched-empty">' + (isNext ? '예정된 일정이 없습니다.' : '지난 일정이 없습니다.') + '</li>'; return; }
     el.innerHTML = list.map(function (e) {
@@ -157,10 +156,27 @@
       return '<li class="sched-item"><span class="sched-date">' + dateText(e) + '</span><span class="sched-label">' + esc(e.label) + '</span>' + badge + '</li>';
     }).join('');
   }
-  render(document.getElementById('schedPast'), past, false);
-  render(document.getElementById('schedNext'), next, true);
-  document.getElementById('schedPastCount').textContent = past.length + '건';
-  document.getElementById('schedNextCount').textContent = next.length + '건';
+  function show(events) {
+    var past = [], next = [];
+    events.forEach(function (e) { (d(e.end || e.start) < today ? past : next).push(e); });
+    next.sort(function (a, b) { return d(a.start) - d(b.start); });
+    past.sort(function (a, b) { return d(b.start) - d(a.start); }); // 지난 일정은 최근 것이 위로
+    render(document.getElementById('schedPast'), past, false);
+    render(document.getElementById('schedNext'), next, true);
+    document.getElementById('schedPastCount').textContent = past.length + '건';
+    document.getElementById('schedNextCount').textContent = next.length + '건';
+  }
+  show(EVENTS);
+  if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    fetch(window.SUPABASE_URL + '/rest/v1/rpc/get_public_schedule', {
+      method: 'POST',
+      headers: { apikey: window.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + window.SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      body: '{}'
+    }).then(function (r) { return r.ok ? r.json() : []; }).then(function (rows) {
+      if (!Array.isArray(rows) || !rows.length) return;
+      show(rows.map(function (r) { return { start: String(r.event_date).slice(0, 10), label: r.title + (r.place ? ' (' + r.place + ')' : '') }; }));
+    }).catch(function () {});
+  }
 })();
 </script>
 
