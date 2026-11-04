@@ -377,11 +377,14 @@ const groupCount = (arr, fn) => arr.reduce((m,x) => (m[fn(x)] = (m[fn(x)]||0)+1,
 function vProjects(tab){
   tab = tab || (S.selProject ? 'detail' : 'list');
   const v = $('#view');
-  v.innerHTML = `<div class="pagehead"><h1>사업·워크플로우</h1><button class="btn pri" id="np">+ 새 사업</button></div>
+  v.innerHTML = `<div class="pagehead"><h1>사업·워크플로우</h1><div class="row" style="flex:none;gap:8px"><button class="btn" id="nimp" title="운영(안) 한글 파일에서 사업명·일시·장소·대상·예산을 자동으로 읽어 옵니다">📄 운영계획(hwpx) 불러오기</button><button class="btn pri" id="np">+ 새 사업</button></div></div>
+    <input type="file" id="impfile" accept=".hwpx" style="display:none">
     <p class="sub">사업을 등록하고 워크플로우를 적용하면 행사일 기준으로 할 일이 자동 생성됩니다.</p>
     <div class="tabs" role="tablist"><button role="tab" data-t="list" aria-selected="${tab!=='wf'}">사업</button><button role="tab" data-t="wf" aria-selected="${tab==='wf'}">워크플로우 템플릿</button></div><div id="pv"></div>`;
   v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { if (b.dataset.t==='list') S.selProject = null; vProjects(b.dataset.t); });
-  $('#np').onclick = () => projDialog();   // 제목 줄에 두어 목록·상세·워크플로우 탭 어디서나 보임
+  $('#np').onclick = () => projDialog();
+  $('#nimp').onclick = () => $('#impfile').click();
+  $('#impfile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) await importPlan(f); };   // 제목 줄에 두어 목록·상세·워크플로우 탭 어디서나 보임
   if (tab === 'wf') return wfView();
   if (tab === 'detail' && S.selProject) return projDetail(S.selProject);
   const pv = $('#pv');
@@ -415,6 +418,40 @@ function projDialog(p){
   if (!isNew) $('#pdel').onclick = async () => { if (!confirm('사업과 연결된 할 일·예산도 함께 삭제됩니다. 삭제할까요?')) return;
     await q(sb.from('admin_projects').delete().eq('id', p.id)); S.projects = S.projects.filter(x => x.id !== p.id);
     S.tasks = S.tasks.filter(t => t.project_id !== p.id); S.budget = S.budget.filter(b => b.project_id !== p.id); S.selProject = null; d.close(); vProjects('list'); };
+}
+// 운영계획(hwpx) 불러오기: 파일에서 뽑은 내용을 확인·수정한 뒤 새 사업 또는 기존 사업에 반영
+async function importPlan(file){
+  let r;
+  try { r = await window.HwpxDocs.parsePlan(await file.arrayBuffer()); }
+  catch(err){ toast('파일을 읽지 못했습니다: ' + (err.message || err)); return; }
+  const d = $('#dlg'); const fd = r.found;
+  const miss = [!fd.name&&'사업명', !fd.event_date&&'행사일', !fd.place&&'장소', !fd.target&&'대상', !fd.budget&&'예산표'].filter(Boolean);
+  d.innerHTML = `<form method="dialog"><div class="dh"><h2 style="margin:0">운영계획에서 읽어 온 내용</h2></div><div class="db fgrid">
+    <p class="small muted" style="grid-column:1/-1;margin:0">${esc(file.name)} — ${miss.length ? `<b>찾지 못한 항목: ${miss.join(', ')}</b> (직접 입력해 주세요). ` : ''}읽어 온 내용이 맞는지 확인하고 고친 뒤 저장하세요.</p>
+    <label class="f" style="grid-column:1/-1">반영할 곳<select id="ig"><option value="">새 사업으로 등록</option>${S.projects.map(p => `<option value="${p.id}">기존 사업에 반영: ${esc(p.name)}</option>`).join('')}</select></label>
+    <label class="f" style="grid-column:1/-1">사업명<input type="text" id="pn" value="${esc(r.name)}"></label>
+    <label class="f">유형<select id="pk">${['대회','축제','특강','연수','리그','예산','기타'].map(k => `<option ${k===r.kind?'selected':''}>${k}</option>`).join('')}</select></label>
+    <label class="f">행사일(기준일)<input type="date" id="pd" value="${esc(r.event_date)}"></label>
+    <label class="f" style="grid-column:1/-1">장소<input type="text" id="pl" value="${esc(r.place)}"></label>
+    <label class="f" style="grid-column:1/-1">대상<input type="text" id="pt" value="${esc(r.target)}"></label>
+    <label class="f" style="grid-column:1/-1">메모 (주제·주최/주관·세부일정)<textarea id="pm" style="min-height:90px">${esc(r.memo)}</textarea></label>
+    <div style="grid-column:1/-1"><b>예산 ${r.budget.length}건</b> <span class="small muted">· 합계 ${won(r.budget.reduce((s,b)=>s+b.amount,0))}원</span>
+      ${r.budget.length ? `<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="ib" checked> 예산 항목도 함께 등록</label>
+      <div class="tw" style="max-height:180px;overflow:auto"><table><thead><tr><th>품목</th><th>비목</th><th>산출내역</th><th class="num">예산액</th></tr></thead><tbody>${r.budget.map(b => `<tr><td>${esc(b.item)}</td><td>${esc(b.category)}</td><td>${esc(b.calc)}</td><td class="num">${won(b.amount)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small muted" style="margin:4px 0">예산표를 찾지 못했습니다.</p>'}</div>
+    </div><div class="df"><span class="spacer"></span><button class="btn" value="cancel" formnovalidate>취소</button><button class="btn pri" id="isave">반영</button></div></form>`;
+  d.showModal();
+  $('#isave').onclick = async e => { e.preventDefault(); const name = $('#pn').value.trim(); if (!name){ toast('사업명을 입력해 주세요'); return; }
+    const row = { name, kind:$('#pk').value, event_date:$('#pd').value||null, place:$('#pl').value, target:$('#pt').value, memo:$('#pm').value };
+    const gid = $('#ig').value; let p;
+    if (gid){ p = S.projects.find(x => x.id == gid); await q(sb.from('admin_projects').update(row).eq('id', p.id)); Object.assign(p, row); }
+    else { const [n] = await q(sb.from('admin_projects').insert({ ...row, status:'준비' }).select()); S.projects.push(n); p = n; }
+    const ib = $('#ib');
+    if (ib && ib.checked && r.budget.length){
+      const rows = r.budget.map(b => ({ project_id:p.id, category:b.category||'운영비', item:b.item, unit_price:b.unit_price||0, qty:b.qty||0, planned:b.amount||0, memo:(b.unit_price ? b.note : (b.calc || b.note)) || null, status:'계획' }));
+      const ins = await q(sb.from('admin_budget').insert(rows).select()); S.budget.push(...ins);
+    }
+    S.projects.sort((a,b) => (a.event_date||'9').localeCompare(b.event_date||'9'));
+    S.selProject = p.id; d.close(); toast('운영계획 내용을 반영했습니다'); vProjects('detail'); };
 }
 async function applyWorkflow(p, w){
   if (!p.event_date){ toast('행사일을 먼저 입력해야 기한을 계산할 수 있습니다'); return; }
