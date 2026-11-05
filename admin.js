@@ -133,7 +133,7 @@ function renderTable() {
           <td>${detailCell}</td>
           <td style="font-family:var(--font-mono); font-size:0.82rem; color:var(--ink-soft);">${r.ip_address || ""}</td>
           <td>${r.privacy_consent ? '<span class="type-badge type-badge-bulk">동의</span>' : '<span class="type-badge" style="background:#F3E3E1; color:var(--clay-dark);">미동의</span>'}</td>
-          <td><button type="button" class="row-remove-btn roster-delete-btn" data-idx="${idx}" title="삭제">×</button></td>
+          <td style="white-space:nowrap;">${r.type === "bulk" ? "" : `<button type="button" class="btn btn-outline roster-edit-btn" data-idx="${idx}" style="font-size:0.78rem; padding:5px 10px; margin-right:6px;" title="이 학생의 종목·정보 수정">수정</button>`}<button type="button" class="row-remove-btn roster-delete-btn" data-idx="${idx}" title="삭제">×</button></td>
         </tr>`;
     })
     .join("");
@@ -158,6 +158,10 @@ function renderTable() {
       }
       window.open(data.signedUrl, "_blank");
     });
+  });
+
+  tableBody.querySelectorAll(".roster-edit-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openStudentEditor(rows[Number(btn.dataset.idx)]));
   });
 
   tableBody.querySelectorAll(".roster-delete-btn").forEach((btn) => {
@@ -233,6 +237,117 @@ async function loadRoster() {
   renderFilters();
   renderSortRow();
   renderTable();
+}
+
+
+/* ============ 학생 종목·정보 수정 (신청 명단의 [수정] 버튼) ============ */
+// 같은 대회·학교·이름의 신청(종목마다 1건)을 한 창에서 고침: 종목 이름 수정, 종목 추가, 종목 삭제, 이름·학교·학년 수정
+function openStudentEditor(row) {
+  const base = row.raw;
+  const siblings = allRows
+    .filter((r) => r.type === "individual" && r.raw.competition === base.competition && r.raw.class_no === base.class_no && r.raw.leader_name === base.leader_name)
+    .map((r) => r.raw)
+    .sort((a, b) => a.id - b.id);
+  const sportSuggestions = Array.from(new Set(allRows.filter((r) => r.type === "individual" && r.raw.competition === base.competition).map((r) => r.raw.sport).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  let items = siblings.map((r) => ({ id: r.id, sport: r.sport || "", orig: r.sport || "", removed: false }));
+
+  const m = document.createElement("div");
+  m.className = "pdf-modal";
+  m.innerHTML = `
+    <div class="pdf-modal-box" role="dialog" aria-modal="true" style="height:auto; max-height:92vh; max-width:620px;">
+      <div class="pdf-modal-head"><strong class="pdf-modal-title">학생 종목·정보 수정</strong>
+        <div class="pdf-modal-actions"><button type="button" class="pdf-modal-close" data-act="close" aria-label="닫기">✕</button></div></div>
+      <div style="padding:16px 22px; overflow:auto;">
+        <p class="sub" style="margin:0 0 12px;">${esc(base.competition)} · 이 학생의 신청 ${siblings.length}건</p>
+        <div class="form-row">
+          <div class="field"><label>이름</label><input type="text" id="seName" value="${esc(base.leader_name)}"></div>
+          <div class="field"><label>학교</label><input type="text" id="seSchool" value="${esc(base.class_no)}"></div>
+          <div class="field"><label>학년</label><input type="text" id="seGrade" value="${esc(base.grade)}" placeholder="예: 4학년"></div>
+        </div>
+        <label class="field-label" style="margin-top:6px;">출전 종목</label>
+        <p class="sub" style="margin:0 0 8px;">형식: <b>종목 부별</b> (예: 200m 남초4, 800m 남초4) · 계주는 <b>4x100mR 초등</b>처럼 급별로 적습니다.</p>
+        <datalist id="seSportList">${sportSuggestions.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>
+        <div id="seItems"></div>
+        <button type="button" class="btn btn-outline" data-act="add" style="margin-top:8px;">+ 종목 추가</button>
+        <p id="seMsg" class="form-status" style="margin-top:10px;"></p>
+      </div>
+      <div style="padding:10px 22px 18px; display:flex; gap:10px; justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost" data-act="close" style="color:var(--ink); border-color:var(--line);">취소</button>
+        <button type="button" class="btn btn-primary" data-act="save">저장</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const $ = (sel) => m.querySelector(sel);
+  const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  const setMsg = (t, ok) => { const el = $("#seMsg"); el.textContent = t; el.className = "form-status " + (ok ? "success" : "error"); };
+
+  function renderItems() {
+    $("#seItems").innerHTML = items
+      .map((it, i) => it.removed ? "" : `
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <input type="text" list="seSportList" data-i="${i}" value="${esc(it.sport)}" placeholder="종목 부별" style="flex:1; padding:10px 12px; border:1px solid ${it.id && it.sport !== it.orig ? "var(--clay)" : "var(--line)"}; border-radius:6px; font:inherit; background:#fff;">
+          <button type="button" class="row-remove-btn" data-rm="${i}" title="이 종목 삭제">×</button>
+        </div>`).join("") || '<p class="sub">출전 종목이 없습니다. [+ 종목 추가]로 넣어 주세요.</p>';
+    m.querySelectorAll("[data-i]").forEach((inp) => inp.addEventListener("input", () => { items[Number(inp.dataset.i)].sport = inp.value; }));
+    m.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", () => { items[Number(b.dataset.rm)].removed = true; renderItems(); }));
+  }
+  renderItems();
+
+  m.addEventListener("click", async (e) => {
+    const act = e.target.closest("[data-act]")?.dataset.act;
+    if (e.target === m || act === "close") return close();
+    if (act === "add") { items.push({ id: null, sport: "", orig: "", removed: false }); renderItems(); const ins = m.querySelectorAll("[data-i]"); ins[ins.length - 1]?.focus(); return; }
+    if (act !== "save") return;
+
+    const name = $("#seName").value.trim(), school = $("#seSchool").value.trim(), grade = $("#seGrade").value.trim();
+    const active = items.filter((it) => !it.removed).map((it) => ({ ...it, sport: it.sport.trim().replace(/\s+/g, " ") }));
+    if (!name || !school) return setMsg("이름과 학교는 비워 둘 수 없습니다.", false);
+    if (active.some((it) => !it.sport)) return setMsg("비어 있는 종목 칸이 있습니다. 채우거나 × 로 지워 주세요.", false);
+    if (new Set(active.map((it) => it.sport)).size !== active.length) return setMsg("같은 종목이 두 번 들어 있습니다.", false);
+    const removed = items.filter((it) => it.removed && it.id);
+    const infoChanged = name !== base.leader_name || school !== base.class_no || grade !== (base.grade || "");
+
+    const saveBtn = $('[data-act="save"]');
+    saveBtn.disabled = true;
+    try {
+      // 삭제할 종목에 이미 입력된 기록이 있으면 확인
+      if (removed.length) {
+        const { count } = await supabase.from("results").select("id", { count: "exact", head: true }).in("applications_id", removed.map((it) => it.id));
+        if (count > 0 && !confirm(`삭제하는 종목 중 기록이 이미 입력된 것이 ${count}건 있습니다. 삭제하면 그 기록도 사라지거나 연결이 끊길 수 있습니다. 계속할까요?`)) { saveBtn.disabled = false; return; }
+      }
+      const failures = [];
+      // 1) 기존 종목 수정 (종목 이름이 바뀌었거나 이름·학교·학년이 바뀐 경우)
+      for (const it of active.filter((x) => x.id)) {
+        if (it.sport === it.orig && !infoChanged) continue;
+        const patch = { sport: it.sport, leader_name: name, class_no: school, grade: grade || null };
+        const { data, error } = await supabase.from("applications").update(patch).eq("id", it.id).select("id");
+        if (error || !data || !data.length) failures.push(`수정 실패: ${it.orig}${error ? " (" + error.message + ")" : " (권한 확인 필요)"}`);
+      }
+      // 2) 새 종목 추가 (이 학생의 기존 신청 정보를 복사)
+      const adds = active.filter((x) => !x.id).map((it) => ({
+        competition: base.competition, sport: it.sport, class_no: school, grade: grade || null, leader_name: name,
+        contact: base.contact ?? null, members: base.members ?? null, note: base.note ?? null, bib_number: base.bib_number ?? null,
+      }));
+      if (adds.length) {
+        const { data, error } = await supabase.from("applications").insert(adds).select("id");
+        if (error || !data || data.length !== adds.length) failures.push("종목 추가 실패" + (error ? ": " + error.message : ""));
+      }
+      // 3) 지운 종목 삭제
+      if (removed.length) {
+        const { data, error } = await supabase.from("applications").delete().in("id", removed.map((it) => it.id)).select("id");
+        if (error || !data || data.length !== removed.length) failures.push("종목 삭제 실패" + (error ? ": " + error.message : " (권한 확인 필요)"));
+      }
+      if (failures.length) { setMsg(failures.join(" / ") + " — 목록을 새로고침해 확인해 주세요.", false); saveBtn.disabled = false; loadRoster(); return; }
+      close();
+      loadRoster();
+    } catch (err) {
+      setMsg("저장 중 오류: " + (err.message || err), false);
+      saveBtn.disabled = false;
+    }
+  });
 }
 
 /* ============ 취합된 신청자 명단 엑셀 일괄 등록 ============ */
