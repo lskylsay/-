@@ -464,7 +464,12 @@ if (container && filterRow) {
       activeDay = days.includes(today) ? today : days[0];
     }
     const counts = {};
-    rows.forEach((r) => { counts[r.sport] = (counts[r.sport] || 0) + 1; });
+    const people = {};   // 종목 → 참가 학생 명단
+    rows.forEach((r) => { counts[r.sport] = (counts[r.sport] || 0) + 1; (people[r.sport] ||= []).push(r); });
+    const peopleHtml = (key) => (people[key] || []).map((r) => {
+      const info = [r.school, r.grade].filter(Boolean).join(" ");
+      return `<span class="tt-person">${escapeHtml(displayName(r.name))}${info ? ` <small>${escapeHtml(info)}</small>` : ""}</span>`;
+    }).join("");
     const list = t.rows.filter((r) => r.date === activeDay && (activeKind === "전체" || r.kind === activeKind));
     const kinds = ["전체", "트랙", "필드"];
     container.innerHTML = `
@@ -476,13 +481,13 @@ if (container && filterRow) {
       <div class="filter-row filter-row-sub" id="ttKinds">${kinds.map((k) => `<button type="button" class="filter-btn${k === activeKind ? " active" : ""}" data-kind="${k}">${k}</button>`).join("")}</div>
       <div style="overflow-x:auto;">
         <table class="result-table public-result-table timetable">
-          <thead><tr><th style="width:70px;">시간</th><th style="width:60px;">구분</th><th>종목</th><th>부별</th><th style="width:80px;">단계</th><th style="width:80px;">참가</th></tr></thead>
+          <thead><tr><th style="width:70px;">시간</th><th style="width:60px;">구분</th><th>종목</th><th>부별</th><th>참가 학생 (학교·학년)</th><th style="width:64px;">단계</th><th style="width:60px;">인원</th></tr></thead>
           <tbody>${list.length ? list.map((r) => {
             const key = sportKeyOf(r);
             const n = counts[key] || 0;
             const link = n ? ` class="tt-row tt-link" data-sport="${escapeHtml(key)}" title="참가자 보기"` : ` class="tt-row"`;
-            return `<tr${link}><td class="tt-time">${r.time}</td><td><span class="tt-kind tt-${r.kind === "필드" ? "field" : "track"}">${escapeHtml(r.kind)}</span></td><td><strong>${escapeHtml(r.event)}</strong></td><td>${escapeHtml(r.bu)}</td><td>${escapeHtml(r.stage)}</td><td>${n ? n + "명" : "-"}</td></tr>`;
-          }).join("") : '<tr><td colspan="6" style="color:var(--ink-soft);">해당 경기가 없습니다.</td></tr>'}</tbody>
+            return `<tr${link}><td class="tt-time">${r.time}</td><td><span class="tt-kind tt-${r.kind === "필드" ? "field" : "track"}">${escapeHtml(r.kind)}</span></td><td><strong>${escapeHtml(r.event)}</strong></td><td>${escapeHtml(r.bu)}</td><td class="tt-people">${n ? peopleHtml(key) : '<span class="tt-none">-</span>'}</td><td>${escapeHtml(r.stage)}</td><td>${n ? n + "명" : "-"}</td></tr>`;
+          }).join("") : '<tr><td colspan="7" style="color:var(--ink-soft);">해당 경기가 없습니다.</td></tr>'}</tbody>
         </table>
       </div>
       ${t.note ? `<p class="sub" style="margin-top:14px;">※ ${escapeHtml(t.note)}</p>` : ""}`;

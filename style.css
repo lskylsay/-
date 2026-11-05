@@ -1695,3 +1695,7 @@ body.modal-open { overflow: hidden; }
 .tt-kind { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 3px; color: #fff; }
 .tt-track { background: var(--navy); }
 .tt-field { background: var(--pine); }
+.timetable .tt-people { line-height: 1.9; }
+.tt-person { display: inline-block; margin: 0 10px 0 0; white-space: nowrap; font-weight: 600; }
+.tt-person small { font-weight: 400; color: var(--ink-soft); font-size: 0.78rem; }
+.tt-none { color: var(--ink-soft); }
