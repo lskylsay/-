@@ -1,0 +1,31 @@
+{
+  "name": "마이스포츠클럽",
+  "short_name": "마이스포츠클럽",
+  "description": "제천 학교스포츠클럽·학교체육 안내, 대회 참가현황과 결과",
+  "lang": "ko",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#16233F",
+  "theme_color": "#16233F",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
