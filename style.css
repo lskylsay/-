@@ -1683,3 +1683,15 @@ body.modal-open { overflow: hidden; }
 .sheet-tab { flex: none; border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; background: #F8F8F4; padding: 7px 14px; font: inherit; font-size: 0.85rem; color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
 .sheet-tab:hover { color: var(--clay); }
 .sheet-tab.active { background: #fff; color: var(--navy); font-weight: 700; border-color: var(--navy); }
+
+/* ---------- 대회 결과: 보기 방식(종목별/시간별) · 경기 시간표 ---------- */
+.view-mode-row { margin-top: 4px; }
+.filter-btn-mode { font-weight: 700; padding: 9px 20px; }
+.timetable-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin: 6px 0 14px; }
+.timetable-head h3 { margin: 0; font-size: 1.1rem; color: var(--navy); }
+.timetable .tt-time { font-family: var(--font-mono); font-weight: 700; color: var(--navy); white-space: nowrap; }
+.timetable tr.tt-link { cursor: pointer; }
+.timetable tr.tt-link:hover td { background: #FBF4EE; }
+.tt-kind { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 3px; color: #fff; }
+.tt-track { background: var(--navy); }
+.tt-field { background: var(--pine); }
