@@ -59,10 +59,22 @@ function maskName(name) {
   return chars.map((c, i) => (i === 0 || i === last || c === " " ? c : "O")).join("");
 }
 
-// 화면에 보여줄 이름: 기본은 실명. MASK_PUBLIC_NAMES 가 true 이고 RESULTS_SHOW_FULL_NAMES 가 아니면 가림
-function displayName(name) {
-  if (!MASK_PUBLIC_NAMES || window.RESULTS_SHOW_FULL_NAMES === true) return String(name ?? "").trim();
-  return maskName(name);
+// 이름 가림이 필요한 대회 (개인정보 보호): 공개 화면에서 성명의 두 번째 글자를 O로 바꿔 보여줌
+// (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남O민수). 경기기록원 결과 탭(RESULTS_SHOW_FULL_NAMES)은 실명 그대로
+const MASKED_COMPETITIONS = ["트랙마라톤 축제"];
+function maskSecondChar(name) {
+  const chars = Array.from(String(name ?? "").trim().replace(/\s+/g, " "));
+  if (chars.length >= 2 && chars[1] !== " ") chars[1] = "O";
+  return chars.join("");
+}
+
+// 화면에 보여줄 이름: 기본은 실명. MASK_PUBLIC_NAMES 가 true 이면 모든 대회 가운데 글자 가림,
+// MASKED_COMPETITIONS 에 있는 대회는 두 번째 글자 가림. RESULTS_SHOW_FULL_NAMES 이면 언제나 실명
+function displayName(name, competition) {
+  if (window.RESULTS_SHOW_FULL_NAMES === true) return String(name ?? "").trim();
+  if (MASK_PUBLIC_NAMES) return maskName(name);
+  if (MASKED_COMPETITIONS.includes(competition)) return maskSecondChar(name);
+  return String(name ?? "").trim();
 }
 
 function competitionDisplayName(name) {
@@ -162,7 +174,7 @@ function fillOverlay(row) {
   overlayFields.bib.hidden = row.bib_number == null;
   overlayFields.bib.setAttribute("aria-label", row.bib_number != null ? `배번 ${row.bib_number}` : "");
   overlayFields.school.textContent = [row.school, row.grade].filter(Boolean).join(" ");
-  overlayFields.name.textContent = displayName(row.name);
+  overlayFields.name.textContent = displayName(row.name, row.competition);
   overlayFields.time.textContent = row.record_time || "기록 입력 전";
   overlayFields.time.classList.toggle("pending", !row.record_time);
   if (overlayStatus && overlayList.length > 1) {
@@ -411,7 +423,7 @@ if (container && filterRow) {
                 <td>${r.bib_number != null ? `<button type="button" class="record-link bib-link" data-id="${r.application_id}">${r.bib_number}</button>` : ""}</td>
                 <td>${escapeHtml(r.school)}</td>
                 <td>${escapeHtml(r.grade)}</td>
-                <td><button type="button" class="record-link" data-id="${r.application_id}">${escapeHtml(displayName(r.name)) || "(이름 없음)"}</button></td>
+                <td><button type="button" class="record-link" data-id="${r.application_id}">${escapeHtml(displayName(r.name, r.competition)) || "(이름 없음)"}</button></td>
                 <td class="record-cell${r.record_time ? "" : " empty"}">${r.record_time ? escapeHtml(r.record_time) : "-"}</td>
                 <td style="color:var(--ink-soft);">${escapeHtml(r.note)}</td>
               </tr>`
@@ -469,7 +481,7 @@ if (container && filterRow) {
     rows.forEach((r) => { counts[r.sport] = (counts[r.sport] || 0) + 1; (people[r.sport] ||= []).push(r); });
     const peopleHtml = (key) => (people[key] || []).map((r) => {
       const info = [r.school, r.grade].filter(Boolean).join(" ");
-      return `<span class="tt-person">${escapeHtml(displayName(r.name))}${info ? ` <small>${escapeHtml(info)}</small>` : ""}</span>`;
+      return `<span class="tt-person">${escapeHtml(displayName(r.name, r.competition))}${info ? ` <small>${escapeHtml(info)}</small>` : ""}</span>`;
     }).join("");
     const list = t.rows.filter((r) => r.date === activeDay && (activeKind === "전체" || r.kind === activeKind));
     const kinds = ["전체", "트랙", "필드"];
