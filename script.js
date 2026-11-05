@@ -161,7 +161,7 @@ function fillOverlay(row) {
   overlayFields.bib.textContent = row.bib_number ?? "";
   overlayFields.bib.hidden = row.bib_number == null;
   overlayFields.bib.setAttribute("aria-label", row.bib_number != null ? `배번 ${row.bib_number}` : "");
-  overlayFields.school.textContent = row.school || "";
+  overlayFields.school.textContent = [row.school, row.grade].filter(Boolean).join(" ");
   overlayFields.name.textContent = displayName(row.name);
   overlayFields.time.textContent = row.record_time || "기록 입력 전";
   overlayFields.time.classList.toggle("pending", !row.record_time);
@@ -341,7 +341,7 @@ if (container && filterRow) {
       <div style="overflow-x:auto;">
         <table class="result-table public-result-table">
           <thead>
-            <tr><th style="width:70px;">배번</th><th>학교</th><th>이름</th><th style="width:100px;">기록</th><th>비고</th></tr>
+            <tr><th style="width:70px;">배번</th><th>학교</th><th style="width:80px;">학년</th><th>이름</th><th style="width:100px;">기록</th><th>비고</th></tr>
           </thead>
           <tbody>
             ${groupRows
@@ -350,6 +350,7 @@ if (container && filterRow) {
               <tr>
                 <td>${r.bib_number != null ? `<button type="button" class="record-link bib-link" data-id="${r.application_id}">${r.bib_number}</button>` : ""}</td>
                 <td>${escapeHtml(r.school)}</td>
+                <td>${escapeHtml(r.grade)}</td>
                 <td><button type="button" class="record-link" data-id="${r.application_id}">${escapeHtml(displayName(r.name)) || "(이름 없음)"}</button></td>
                 <td class="record-cell${r.record_time ? "" : " empty"}">${r.record_time ? escapeHtml(r.record_time) : "-"}</td>
                 <td style="color:var(--ink-soft);">${escapeHtml(r.note)}</td>
