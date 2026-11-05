@@ -302,6 +302,36 @@ if (container && filterRow) {
   let loadToken = 0;
   let visibleRows = []; // 현재 화면에 표시된 참가자 (기록 카드 좌우 이동용)
 
+  // ---- 보기 방식: 종목별 보기(종목 → 부별) / 시간별 보기(경기 시간표, timetables.json) ----
+  let viewMode = "sport";
+  let activeEvent = "";
+  let timetable = null;        // 현재 대회의 시간표 (없으면 null → '시간별 보기' 숨김)
+  let activeDay = 0;
+  let activeKind = "전체";
+  const modeRow = document.createElement("div");
+  modeRow.className = "filter-row view-mode-row";
+  const subRow = document.createElement("div");
+  subRow.className = "filter-row filter-row-sub";
+  if (sportFilterRow) {
+    sportFilterRow.parentNode.insertBefore(modeRow, sportFilterRow);
+    sportFilterRow.parentNode.insertBefore(subRow, sportFilterRow.nextSibling);
+  }
+  let timetablesPromise = null;
+  const loadTimetables = () => (timetablesPromise ||= fetch("timetables.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
+  const eventOf = (sport) => String(sport).split(" ")[0];
+  const buOf = (sport) => String(sport).split(" ").slice(1).join(" ");
+  // 종목 아래 부별이 있어 묶을 수 있을 때만 2단(종목 → 부별)으로 보여줌
+  const isGrouped = () => new Set(sports.map(eventOf)).size < sports.length;
+  const WDAY = ["일", "월", "화", "수", "목", "금", "토"];
+  const dayLabel = (iso) => { const d = new Date(iso + "T00:00:00"); return `${d.getMonth() + 1}/${d.getDate()}(${WDAY[d.getDay()]})`; };
+  // 시간표의 (종목, 부별) → 참가자 명단의 종목 이름 (계주는 급별로 묶여 있음)
+  function sportKeyOf(t) {
+    const mix = /mix/i.test(t.bu);
+    const level = /초/.test(t.bu) ? "초등" : /중/.test(t.bu) ? "중등" : /고/.test(t.bu) ? "고등" : "";
+    if (/R$/.test(t.event)) return mix ? `혼성계주 ${level}` : `${t.event} ${level}`;
+    return `${t.event} ${t.bu}`;
+  }
+
   function renderButtons(target, items, active, onSelect) {
     target.innerHTML = "";
     items.forEach((item) => {
@@ -323,11 +353,40 @@ if (container && filterRow) {
       history.replaceState(null, "", url);
       loadResults();
     });
-    renderButtons(sportFilterRow, query ? [] : sports, activeSport, (sport) => {
-      activeSport = sport;
+    // 보기 방식 선택 (시간표가 있는 대회만)
+    modeRow.style.display = timetable && !query ? "" : "none";
+    renderButtons(modeRow, timetable ? ["종목별 보기", "시간별 보기"] : [], viewMode === "time" ? "시간별 보기" : "종목별 보기", (label) => {
+      viewMode = label === "시간별 보기" ? "time" : "sport";
       renderFilters();
       renderResults();
     });
+    modeRow.querySelectorAll(".filter-btn").forEach((b) => b.classList.add("filter-btn-mode"));
+
+    const hideSports = query || viewMode === "time";
+    if (!hideSports && isGrouped()) {
+      const events = Array.from(new Set(sports.map(eventOf)));
+      renderButtons(sportFilterRow, events, activeEvent, (ev) => {
+        activeEvent = ev;
+        activeSport = sports.find((sp) => eventOf(sp) === ev) || "";
+        renderFilters();
+        renderResults();
+      });
+      const subs = sports.filter((sp) => eventOf(sp) === activeEvent);
+      renderButtons(subRow, subs.map(buOf), buOf(activeSport), (bu) => {
+        activeSport = `${activeEvent} ${bu}`;
+        renderFilters();
+        renderResults();
+      });
+      subRow.style.display = "";
+    } else {
+      subRow.style.display = "none";
+      renderButtons(sportFilterRow, hideSports ? [] : sports, activeSport, (sport) => {
+        activeSport = sport;
+        activeEvent = eventOf(sport);
+        renderFilters();
+        renderResults();
+      });
+    }
   }
 
   function matchesQuery(row) {
@@ -369,6 +428,8 @@ if (container && filterRow) {
       return;
     }
 
+    if (viewMode === "time" && timetable && !query) { renderTimetable(); return; }
+
     // 검색 중에는 종목과 상관없이 대회 전체에서 찾음
     const targetSports = query ? sports : [activeSport];
     const groups = targetSports
@@ -394,6 +455,45 @@ if (container && filterRow) {
       .join("");
   }
 
+  // 시간별 보기: 일차 탭 + 구분(트랙/필드) 필터 + 시간순 경기 시간표
+  function renderTimetable() {
+    const t = timetable;
+    const days = Array.from(new Set(t.rows.map((r) => r.date))).sort();
+    if (!days.includes(activeDay)) {
+      const today = new Date().toISOString().slice(0, 10);
+      activeDay = days.includes(today) ? today : days[0];
+    }
+    const counts = {};
+    rows.forEach((r) => { counts[r.sport] = (counts[r.sport] || 0) + 1; });
+    const list = t.rows.filter((r) => r.date === activeDay && (activeKind === "전체" || r.kind === activeKind));
+    const kinds = ["전체", "트랙", "필드"];
+    container.innerHTML = `
+      <div class="timetable-head">
+        <h3>${escapeHtml(t.title || "경기 시간표")}</h3>
+        ${t.place ? `<span class="division">${escapeHtml(t.place)}</span>` : ""}
+      </div>
+      <div class="filter-row" id="ttDays">${days.map((d, i) => `<button type="button" class="filter-btn${d === activeDay ? " active" : ""}" data-day="${d}">${i + 1}일차 ${dayLabel(d)}</button>`).join("")}</div>
+      <div class="filter-row filter-row-sub" id="ttKinds">${kinds.map((k) => `<button type="button" class="filter-btn${k === activeKind ? " active" : ""}" data-kind="${k}">${k}</button>`).join("")}</div>
+      <div style="overflow-x:auto;">
+        <table class="result-table public-result-table timetable">
+          <thead><tr><th style="width:70px;">시간</th><th style="width:60px;">구분</th><th>종목</th><th>부별</th><th style="width:80px;">단계</th><th style="width:80px;">참가</th></tr></thead>
+          <tbody>${list.length ? list.map((r) => {
+            const key = sportKeyOf(r);
+            const n = counts[key] || 0;
+            const link = n ? ` class="tt-row tt-link" data-sport="${escapeHtml(key)}" title="참가자 보기"` : ` class="tt-row"`;
+            return `<tr${link}><td class="tt-time">${r.time}</td><td><span class="tt-kind tt-${r.kind === "필드" ? "field" : "track"}">${escapeHtml(r.kind)}</span></td><td><strong>${escapeHtml(r.event)}</strong></td><td>${escapeHtml(r.bu)}</td><td>${escapeHtml(r.stage)}</td><td>${n ? n + "명" : "-"}</td></tr>`;
+          }).join("") : '<tr><td colspan="6" style="color:var(--ink-soft);">해당 경기가 없습니다.</td></tr>'}</tbody>
+        </table>
+      </div>
+      ${t.note ? `<p class="sub" style="margin-top:14px;">※ ${escapeHtml(t.note)}</p>` : ""}`;
+    container.querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => { activeDay = b.dataset.day; renderTimetable(); }));
+    container.querySelectorAll("[data-kind]").forEach((b) => b.addEventListener("click", () => { activeKind = b.dataset.kind; renderTimetable(); }));
+    container.querySelectorAll("tr.tt-link").forEach((tr) => tr.addEventListener("click", () => {
+      activeSport = tr.dataset.sport; activeEvent = eventOf(activeSport); viewMode = "sport";
+      renderFilters(); renderResults(); window.scrollTo({ top: 0, behavior: "smooth" });
+    }));
+  }
+
   container.addEventListener("click", (e) => {
     const link = e.target.closest(".record-link");
     if (!link) return;
@@ -417,6 +517,9 @@ if (container && filterRow) {
       rows = [];
       sports = [];
       activeSport = "";
+      activeEvent = "";
+      timetable = null;
+      viewMode = "sport";
       renderFilters();
       container.innerHTML = '<p class="empty-note">불러오는 중…</p>';
     }
@@ -433,6 +536,12 @@ if (container && filterRow) {
     rows = (data || []).map((r) => ({ ...r, sport: r.sport || "기타" })).sort(byBib);
     sports = Array.from(new Set(rows.map((r) => r.sport))).sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
     activeSport = sports.includes(prevSport) ? prevSport : sports[0] || "";
+    activeEvent = eventOf(activeSport);
+
+    const tts = await loadTimetables();
+    if (token !== loadToken) return;
+    timetable = (tts && tts[activeCompetition]) || null;
+    if (!timetable) viewMode = "sport";
 
     renderFilters();
     renderResults();
