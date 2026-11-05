@@ -372,6 +372,38 @@ function surveyToApplications(students, competition) {
   return out;
 }
 
+// 같은 대회에 신청이 이미 있을 때: 교체(기존 삭제 후 새로 등록) / 추가 / 취소 선택창
+function askUploadMode({ competition, existing, incoming, recorded }) {
+  return new Promise((resolve) => {
+    const m = document.createElement("div");
+    m.className = "pdf-modal";
+    m.innerHTML = `
+      <div class="pdf-modal-box" role="dialog" aria-modal="true" style="height:auto; max-width:560px;">
+        <div class="pdf-modal-head"><strong class="pdf-modal-title">이미 등록된 신청이 있습니다</strong></div>
+        <div style="padding:18px 22px 6px; line-height:1.7;">
+          <p style="margin:0 0 14px;"><b>${competition}</b>에 <b>${existing}건</b>이 등록되어 있습니다. 이번 파일(<b>${incoming}건</b>)을 어떻게 등록할까요?</p>
+          <button type="button" class="btn btn-primary" data-mode="replace" style="display:block; width:100%; margin-bottom:6px;">기존 ${existing}건 삭제 후 새 파일로 교체</button>
+          <p class="sub" style="margin:0 0 14px;">같은 파일을 고쳐서 다시 올릴 때 알맞습니다. 새 파일을 먼저 등록한 뒤 이전 신청을 지웁니다.</p>
+          <button type="button" class="btn btn-outline" data-mode="add" style="display:block; width:100%; margin-bottom:6px;">기존 자료는 두고 이번 파일 추가</button>
+          <p class="sub" style="margin:0 0 6px;">다른 학교 명단을 이어서 올릴 때 알맞습니다. 같은 파일을 다시 올리면 중복됩니다.</p>
+          ${recorded ? `<p style="margin:10px 0 0; color:var(--clay); font-size:0.9rem;">⚠ 이 대회에는 이미 입력된 기록이 ${recorded}건 있습니다. 교체하면 지워진 신청에 연결된 기록은 사라지거나 연결이 끊길 수 있습니다.</p>` : ""}
+        </div>
+        <div style="padding:10px 22px 18px; text-align:right;"><button type="button" class="btn btn-ghost" data-mode="cancel" style="color:var(--ink); border-color:var(--line);">취소</button></div>
+      </div>`;
+    const done = (v) => { m.remove(); document.removeEventListener("keydown", onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === "Escape") done("cancel"); };
+    document.addEventListener("keydown", onKey);
+    m.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-mode]");
+      if (b) {
+        if (b.dataset.mode === "replace" && !confirm(`정말 기존 ${existing}건을 삭제하고 새 파일로 교체할까요?\n삭제한 신청은 되돌릴 수 없습니다.`)) return;
+        done(b.dataset.mode);
+      } else if (e.target === m) done("cancel");
+    });
+    document.body.appendChild(m);
+  });
+}
+
 rosterUploadBtn.addEventListener("click", async () => {
   const file = rosterUploadFile.files[0];
   const competition = document.getElementById("rosterUploadCompetition").value;
@@ -447,28 +479,62 @@ rosterUploadBtn.addEventListener("click", async () => {
       return;
     }
 
-    // 같은 대회에 이미 등록된 신청이 있으면 중복 등록 여부를 확인
+    // 같은 대회에 이미 등록된 신청이 있으면 "교체(기존 삭제 후 새로 등록)" / "추가" / 취소 중에서 고르게 함
     const { count: existing } = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("competition", competition);
-    if (existing > 0 && !confirm(`${competition}에는 이미 ${existing}건이 등록되어 있습니다.\n이번 파일의 ${parsed.length}건을 추가로 등록할까요? (같은 파일을 다시 올리면 중복됩니다)`)) {
-      rosterUploadStatus.textContent = "등록을 취소했습니다.";
-      rosterUploadStatus.className = "form-status";
-      rosterUploadBtn.disabled = false;
-      return;
+    let mode = "add";
+    let oldIds = [];
+    if (existing > 0) {
+      const { count: recorded } = await supabase.from("results").select("id", { count: "exact", head: true }).eq("competition", competition);
+      mode = await askUploadMode({ competition, existing, incoming: parsed.length, recorded: recorded || 0 });
+      if (mode === "cancel") {
+        rosterUploadStatus.textContent = "등록을 취소했습니다.";
+        rosterUploadStatus.className = "form-status";
+        rosterUploadBtn.disabled = false;
+        return;
+      }
+      if (mode === "replace") {
+        // 새 파일을 먼저 등록한 뒤 옛 신청만 지움 (등록이 실패하면 기존 자료는 그대로 남음)
+        for (let from = 0; ; from += 1000) {
+          const { data: part, error: idErr } = await supabase.from("applications").select("id").eq("competition", competition).range(from, from + 999);
+          if (idErr) throw idErr;
+          oldIds.push(...part.map((r) => r.id));
+          if (part.length < 1000) break;
+        }
+      }
     }
 
+    rosterUploadStatus.textContent = "등록 중…";
     const { error } = await supabase.from("applications").insert(parsed);
 
-    rosterUploadBtn.disabled = false;
-
     if (error) {
-      rosterUploadStatus.textContent = "업로드 실패: " + error.message;
+      rosterUploadBtn.disabled = false;
+      rosterUploadStatus.textContent = "업로드 실패: " + error.message + (mode === "replace" ? " (기존 자료는 그대로 남아 있습니다)" : "");
       rosterUploadStatus.className = "form-status error";
       return;
     }
 
+    let replaceNote = "";
+    if (mode === "replace" && oldIds.length) {
+      let deleted = 0;
+      let delErr = null;
+      for (let i = 0; i < oldIds.length; i += 200) {
+        const chunk = oldIds.slice(i, i + 200);
+        const { data: gone, error: e2 } = await supabase.from("applications").delete().in("id", chunk).select("id");
+        if (e2) { delErr = e2; break; }
+        deleted += (gone || []).length;
+      }
+      if (delErr || deleted < oldIds.length) {
+        replaceNote = ` ⚠ 기존 ${oldIds.length}건 중 ${deleted}건만 삭제되었습니다${delErr ? " (" + delErr.message + ")" : " (삭제 권한 확인 필요)"}. 목록에서 중복된 이전 자료를 확인해 주세요.`;
+      } else {
+        replaceNote = ` (기존 ${deleted}건은 삭제하고 새 파일로 교체했습니다)`;
+      }
+    }
+
+    rosterUploadBtn.disabled = false;
+
     rosterUploadStatus.textContent =
       `총 ${parsed.length}명 등록 완료 [${sheetSummaries.join(", ")}]` +
-      (totalSkipped ? ` (소속 누락 등으로 ${totalSkipped}건 건너뜀)` : "");
+      (totalSkipped ? ` (소속 누락 등으로 ${totalSkipped}건 건너뜀)` : "") + replaceNote;
     rosterUploadStatus.className = "form-status success";
     rosterUploadFile.value = "";
     document.getElementById("rosterUploadFileName").textContent = "";
