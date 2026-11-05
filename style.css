@@ -1672,3 +1672,14 @@ body.modal-open { overflow: hidden; }
   .sched-item { grid-template-columns: 104px 1fr auto; gap: 8px; }
   .sched-date { font-size: 0.78rem; }
 }
+
+/* ---------- 게시판 엑셀 화면 열람 (시트 탭은 아래쪽) ---------- */
+.sheet-body { flex: 1; overflow: auto; background: #fff; padding: 0; }
+.sheet-body table { border-collapse: collapse; font-size: 0.85rem; min-width: 100%; }
+.sheet-body td, .sheet-body th { border: 1px solid var(--line); padding: 5px 9px; vertical-align: top; white-space: pre-wrap; max-width: 420px; }
+.sheet-body tr:first-child td { background: #F4F3EE; font-weight: 600; }
+.sheet-msg { padding: 28px 24px; color: var(--ink-soft); }
+.sheet-tabs { display: flex; gap: 4px; padding: 6px 10px 0; overflow-x: auto; background: #EDEDE8; border-top: 1px solid var(--line); flex-shrink: 0; }
+.sheet-tab { flex: none; border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; background: #F8F8F4; padding: 7px 14px; font: inherit; font-size: 0.85rem; color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
+.sheet-tab:hover { color: var(--clay); }
+.sheet-tab.active { background: #fff; color: var(--navy); font-weight: 700; border-color: var(--navy); }
