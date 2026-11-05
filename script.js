@@ -316,6 +316,7 @@ if (container && filterRow) {
     sportFilterRow.parentNode.insertBefore(modeRow, sportFilterRow);
     sportFilterRow.parentNode.insertBefore(subRow, sportFilterRow.nextSibling);
   }
+  let initialView = new URLSearchParams(window.location.search).get("view"); // ?view=time → 시간별 보기로 바로 열기
   let timetablesPromise = null;
   const loadTimetables = () => (timetablesPromise ||= fetch("timetables.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
   const eventOf = (sport) => String(sport).split(" ")[0];
@@ -547,6 +548,8 @@ if (container && filterRow) {
     if (token !== loadToken) return;
     timetable = (tts && tts[activeCompetition]) || null;
     if (!timetable) viewMode = "sport";
+    else if (initialView === "time") viewMode = "time";
+    initialView = null;
 
     renderFilters();
     renderResults();

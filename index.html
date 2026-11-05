@@ -39,6 +39,12 @@
     </div>
     <span class="bib">충북형 몸활동 '어디서나 운동장'</span>
     <h1>마이스포츠클럽</h1>
+    <!-- 한시 배너: 2026.11.5.~11.12. 동안만 보임 (아래 스크립트가 날짜를 확인) -->
+    <a href="results.html?competition=%EC%B6%A9%EB%B6%81%EA%B5%90%EC%9C%A1%EA%B0%90%EA%B8%B0%20%EC%9C%A1%EC%83%81%EB%8C%80%ED%9A%8C&view=time" class="hero-banner" id="heroBanner" hidden>
+      <span class="hero-banner-tag">11.5.~11.12.</span>
+      <span class="hero-banner-text">교육감기 육상대회 시간별 출전선수 현황보기</span>
+      <span class="hero-banner-arrow" aria-hidden="true">→</span>
+    </a>
     <p class="lede" style="max-width:none;">홈페이지 방문을 환영합니다.</p>
   </div>
 </section>
@@ -94,5 +100,13 @@
   </div>
 </footer>
 
+<script>
+// 한시 배너 표시 기간 (한국 시간 기준, 시작·끝 날짜 포함)
+(function () {
+  var START = '2026-11-05', END = '2026-11-12';
+  var today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+  if (today >= START && today <= END) document.getElementById('heroBanner').hidden = false;
+})();
+</script>
 </body>
 </html>

@@ -1699,3 +1699,39 @@ body.modal-open { overflow: hidden; }
 .tt-person { display: inline-block; margin: 0 10px 0 0; white-space: nowrap; font-weight: 600; }
 .tt-person small { font-weight: 400; color: var(--ink-soft); font-size: 0.78rem; }
 .tt-none { color: var(--ink-soft); }
+
+/* ---------- 처음화면 한시 배너 (노란색) ---------- */
+.hero-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 12px 20px;
+  background: #FFD84D;
+  color: #1A1D22;
+  font-weight: 800;
+  font-size: 1.05rem;
+  text-decoration: none;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.hero-banner[hidden] { display: none; }
+.hero-banner:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.38); }
+.hero-banner-tag {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #1A1D22;
+  color: #FFD84D;
+  padding: 3px 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.hero-banner-arrow { font-size: 1.2rem; }
+@media (max-width: 640px) {
+  .hero-banner { display: flex; width: 100%; flex-wrap: wrap; gap: 6px 10px; font-size: 0.95rem; padding: 11px 14px; }
+  .hero-banner[hidden] { display: none; }
+  .hero-banner-text { flex: 1 1 100%; order: 2; }
+  .hero-banner-arrow { display: none; }
+}
