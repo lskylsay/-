@@ -87,6 +87,7 @@
 - **보기 방식**: 시간표(`timetables.json`)가 있는 대회(지금은 '충북교육감기 육상대회')만 대회 버튼 아래에 '종목별 보기' / '시간별 보기' 버튼이 생김(없는 대회는 기존처럼 종목 버튼만). 종목별 보기: 종목 이름이 "종목 부별"(예: `100m 남초5`)이고 종목이 여러 부별로 나뉘면 2단(종목 버튼 → 부별 버튼)으로 정리, 아니면 기존 한 줄. 시간별 보기(`renderTimetable`): 일차 탭 + 구분(전체/트랙/필드) + 시간순 표(시간·구분·종목·부별·**참가 학생(이름+학교·학년)**·단계·인원), 행을 누르면 그 종목 참가자 목록으로 이동(계주는 `4x100mR 초등`·`혼성계주 초등` 식으로 급별에 연결 — `sportKeyOf`). 시간표 데이터 형식: `{"대회명": {title, place, note, rows:[{day,date,kind,time,event,bu,stage}]}}`, 원본은 '경기일정표' 시트를 변환한 것이라 일정이 바뀌면 이 파일을 갱신. 이 동작은 recorder.html 결과 탭에도 똑같이 적용
 - 대회 버튼 → `get_public_results` 로 참가자 전체 로드 → 종목(`sport`) 버튼 → 배번순 표 (배번/학교/학년/이름/기록/비고, 기록 없으면 `-`; 학년은 RPC의 `grade`, 기념촬영 카드에는 학교 옆에 함께 표시)
 - 이름은 표와 기념촬영 카드 모두 실명 표시 (`displayName`). 검색도 실명으로 동작
+  - **'트랙마라톤 축제'는 공개 화면에서 성명의 두 번째 글자를 O로 가림**(`MASKED_COMPETITIONS`·`maskSecondChar`, 홍길동 → 홍O동, 남궁민수 → 남O민수; 표·기념촬영 카드·시간표 모두). 다른 대회는 실명. 가릴 대회를 더하려면 `MASKED_COMPETITIONS`에 대회명 추가. 경기기록원 결과 탭(`RESULTS_SHOW_FULL_NAMES = true`)은 항상 실명
   - `script.js` 위쪽 `const MASK_PUBLIC_NAMES = false;`를 `true`로 바꾸면 `maskName`으로 가운데 글자를 O로 가림 (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남OO수)
   - `script.js`보다 먼저 `window.RESULTS_SHOW_FULL_NAMES = true`를 두면 가림 설정과 관계없이 실명 (경기기록원 결과 탭에서 사용)
   - 이름 가림은 화면 표시만의 처리이며, `get_public_results`는 실명을 그대로 돌려줌
