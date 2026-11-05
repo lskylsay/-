@@ -28,23 +28,37 @@ async function loadPosts() {
 
   allPosts = data || [];
   if (!SPORTS) { renderPosts(allPosts, window.SCHOOLPE_EMPTY_TEXT || "등록된 게시물이 없습니다."); return; }
-  const fromHash = decodeURIComponent((location.hash || "").slice(1));
-  activeTab = SPORTS.includes(fromHash) || fromHash === "공통" ? fromHash : SPORTS[0];
+  const [hTab, hSub] = decodeURIComponent((location.hash || "").slice(1)).split("/");
+  activeTab = SPORTS.includes(hTab) || hTab === "공통" ? hTab : SPORTS[0];
+  activeSub = hSub && (SUBS[activeTab] || []).includes(hSub) ? hSub : "전체";
   showTab();
 }
 
 // 종목 탭(window.SCHOOLPE_SPORTS)이 있는 게시판: 게시물 제목이 "[종목] 제목" 형식이면 그 종목 탭에 모아 보여줍니다.
-// (관리자 화면의 종목 선택이 제목 앞에 [종목]을 붙여 등록합니다. [종목]이 없는 글은 '공통' 탭에 나옵니다.)
+// 종목 아래 학교별 하위 탭(window.SCHOOLPE_SUBS = { 종목: [학교, …] })이 있으면 "[종목·학교] 제목" 형식으로 학교 탭에 모읍니다.
+// (관리자 화면의 종목·학교 선택이 제목 앞에 붙여 등록합니다. [종목]이 없는 글은 '공통' 탭에 나옵니다.)
 const SPORTS = window.SCHOOLPE_SPORTS || null;
+const SUBS = window.SCHOOLPE_SUBS || {};
 const tabsEl = document.getElementById("boardTabs");
+const subTabsEl = document.getElementById("boardSubTabs");
 let allPosts = [];
 let activeTab = null;
+let activeSub = "전체";
 
-function sportOf(p) {
+// "[종목]" 또는 "[종목·학교]" → { sport, school }
+function tagOf(p) {
   const m = String(p.title || "").match(/^\[([^\]]+)\]\s*/);
-  return m && SPORTS && SPORTS.includes(m[1]) ? m[1] : null;
+  if (!m || !SPORTS) return null;
+  const [sport, school] = m[1].split("·").map((x) => x.trim());
+  return SPORTS.includes(sport) ? { sport, school: school || "" } : null;
 }
-const stripSport = (p) => (sportOf(p) ? { ...p, title: p.title.replace(/^\[[^\]]+\]\s*/, "") } : p);
+const sportOf = (p) => { const t = tagOf(p); return t ? t.sport : null; };
+const stripSport = (p) => (tagOf(p) ? { ...p, title: p.title.replace(/^\[[^\]]+\]\s*/, "") } : p);
+
+function setHash() {
+  const h = activeSub !== "전체" ? `${activeTab}/${activeSub}` : activeTab;
+  history.replaceState(null, "", "#" + encodeURIComponent(h));
+}
 
 function renderTabs() {
   if (!SPORTS || !tabsEl) return;
@@ -57,16 +71,41 @@ function renderTabs() {
     b.type = "button";
     b.className = "filter-btn" + (t === activeTab ? " active" : "");
     b.textContent = n ? `${t} ${n}` : t;
-    b.addEventListener("click", () => { activeTab = t; history.replaceState(null, "", "#" + encodeURIComponent(t)); showTab(); });
+    b.addEventListener("click", () => { activeTab = t; activeSub = "전체"; setHash(); showTab(); });
     tabsEl.appendChild(b);
+  });
+}
+
+// 종목 아래 학교별 하위 탭 (롤러(빙상): 동명초·제천중·제천여중·제천고·제천여고)
+function renderSubTabs() {
+  if (!subTabsEl) return;
+  const schools = SUBS[activeTab];
+  if (!schools || !schools.length) { subTabsEl.style.display = "none"; subTabsEl.innerHTML = ""; return; }
+  subTabsEl.style.display = "";
+  subTabsEl.innerHTML = "";
+  ["전체", ...schools].forEach((sc) => {
+    const n = allPosts.filter((p) => { const t = tagOf(p); return t && t.sport === activeTab && (sc === "전체" || t.school === sc); }).length;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "filter-btn filter-btn-sub" + (sc === activeSub ? " active" : "");
+    b.textContent = n ? `${sc} ${n}` : sc;
+    b.addEventListener("click", () => { activeSub = sc; setHash(); showTab(); });
+    subTabsEl.appendChild(b);
   });
 }
 
 function showTab() {
   renderTabs();
-  const list = allPosts.filter((p) => (activeTab === "공통" ? !sportOf(p) : sportOf(p) === activeTab)).map(stripSport);
+  renderSubTabs();
+  const list = allPosts.filter((p) => {
+    if (activeTab === "공통") return !sportOf(p);
+    const t = tagOf(p);
+    return t && t.sport === activeTab && (activeSub === "전체" || t.school === activeSub);
+  }).map(stripSport);
   const base = window.SCHOOLPE_EMPTY_TEXT || "등록된 게시물이 없습니다.";
-  renderPosts(list, activeTab === "공통" ? base : base.replace("등록된 자료", `등록된 ${activeTab} 자료`));
+  let label = activeTab;
+  if (activeTab !== "공통" && activeSub !== "전체") label = `${activeSub} ${activeTab}팀`;
+  renderPosts(list, activeTab === "공통" ? base : base.replace("등록된 자료", `등록된 ${label} 자료`));
 }
 
 function renderPosts(data, emptyText) {

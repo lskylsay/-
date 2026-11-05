@@ -1187,6 +1187,9 @@ let spAllRows = [];
 let spActiveCategory = "전체";
 let spMode = null; // null = 기존 5개 게시판, 그 외 = 해당 카테고리 하나만
 
+// 종목 아래 학교별 팀 (teams.html의 window.SCHOOLPE_SUBS와 같게 유지)
+const TEAM_SCHOOLS = { "롤러(빙상)": ["동명초", "제천중", "제천여중", "제천고", "제천여고"] };
+
 function spCategoryKeys() {
   return spMode ? [spMode] : Object.keys(CATEGORY_LABELS).filter((k) => !SP_SINGLE_TABS.includes(k));
 }
@@ -1208,6 +1211,14 @@ function setSpMode(mode) {
 }
 
 schoolpeRefreshBtn.addEventListener("click", loadSchoolpeAdmin);
+
+// 종목을 고르면 그 종목의 학교(팀) 선택이 나타남 (학교별 하위 항목이 있는 종목만)
+document.getElementById("spSport").addEventListener("change", (e) => {
+  const schools = TEAM_SCHOOLS[e.target.value] || [];
+  const sel = document.getElementById("spSchool");
+  sel.innerHTML = '<option value="">(종목 공통)</option>' + schools.map((s) => `<option value="${s}">${s}</option>`).join("");
+  document.getElementById("spSchoolField").style.display = schools.length ? "" : "none";
+});
 
 function renderSpFilters() {
   const cats = ["전체", ...spCategoryKeys()];
@@ -1298,12 +1309,13 @@ spUploadBtn.addEventListener("click", async () => {
   // 학교운동부 운영 현황: 종목을 골라야 하고, 제목 앞에 [종목]을 붙여 종목 탭에 모이게 함
   const sportSel = document.getElementById("spSport");
   const teamSport = category === "teams" ? sportSel.value : "";
+  const teamSchool = teamSport ? document.getElementById("spSchool").value : "";
   if (category === "teams" && !teamSport) {
     spUploadStatus.textContent = "종목을 선택해 주세요.";
     spUploadStatus.className = "form-status error";
     return;
   }
-  const fullTitle = teamSport ? `[${teamSport}] ${title}` : title;
+  const fullTitle = teamSport ? `[${teamSport}${teamSchool ? "·" + teamSchool : ""}] ${title}` : title;
 
   spUploadBtn.disabled = true;
   spUploadStatus.textContent = "등록 중…";
@@ -1351,6 +1363,7 @@ spUploadBtn.addEventListener("click", async () => {
   document.getElementById("spFileDropzone").classList.remove("has-file");
   spCategory.value = spMode || "";
   document.getElementById("spSport").value = "";
+  document.getElementById("spSchoolField").style.display = "none";
   loadSchoolpeAdmin();
 });
 
