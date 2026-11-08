@@ -489,6 +489,7 @@ if (container && filterRow) {
       <div class="timetable-head">
         <h3>${escapeHtml(t.title || "경기 시간표")}</h3>
         ${t.place ? `<span class="division">${escapeHtml(t.place)}</span>` : ""}
+        <button type="button" class="filter-btn" id="ttExcel" style="margin-left:auto;">엑셀 내려받기</button>
       </div>
       <div class="filter-row" id="ttDays">${days.map((d, i) => `<button type="button" class="filter-btn${d === activeDay ? " active" : ""}" data-day="${d}">${i + 1}일차 ${dayLabel(d)}</button>`).join("")}</div>
       <div class="filter-row filter-row-sub" id="ttKinds">${kinds.map((k) => `<button type="button" class="filter-btn${k === activeKind ? " active" : ""}" data-kind="${k}">${k}</button>`).join("")}</div>
@@ -504,12 +505,56 @@ if (container && filterRow) {
         </table>
       </div>
       ${t.note ? `<p class="sub" style="margin-top:14px;">※ ${escapeHtml(t.note)}</p>` : ""}`;
+    const excelBtn = container.querySelector("#ttExcel");
+    if (excelBtn) excelBtn.addEventListener("click", () => downloadTimetableExcel(excelBtn));
     container.querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => { activeDay = b.dataset.day; renderTimetable(); }));
     container.querySelectorAll("[data-kind]").forEach((b) => b.addEventListener("click", () => { activeKind = b.dataset.kind; renderTimetable(); }));
     container.querySelectorAll("tr.tt-link").forEach((tr) => tr.addEventListener("click", () => {
       activeSport = tr.dataset.sport; activeEvent = eventOf(activeSport); viewMode = "sport";
       renderFilters(); renderResults(); window.scrollTo({ top: 0, behavior: "smooth" });
     }));
+  }
+
+  // 시간별 출전선수 명단을 엑셀로 내려받기 (일차별 시트, 선수 1명당 1줄)
+  function loadSheetJs() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    return new Promise((resolve, reject) => {
+      const el = document.createElement("script");
+      el.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+      el.onload = () => resolve(window.XLSX);
+      el.onerror = () => reject(new Error("엑셀 도구를 불러오지 못했습니다."));
+      document.head.appendChild(el);
+    });
+  }
+
+  async function downloadTimetableExcel(btn) {
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = "만드는 중…";
+    try {
+      const XLSX = await loadSheetJs();
+      const people = {};
+      rows.forEach((r) => { (people[r.sport] ||= []).push(r); });
+      const days = Array.from(new Set(timetable.rows.map((r) => r.date))).sort();
+      const wb = XLSX.utils.book_new();
+      const head = ["시간", "구분", "종목", "부별", "단계", "이름", "학교", "학년", "배번"];
+      days.forEach((d, i) => {
+        const data = [head];
+        timetable.rows.filter((r) => r.date === d).forEach((r) => {
+          const list = people[sportKeyOf(r)] || [];
+          if (!list.length) { data.push([r.time, r.kind, r.event, r.bu, r.stage, "", "", "", ""]); return; }
+          list.forEach((p) => data.push([r.time, r.kind, r.event, r.bu, r.stage, displayName(p.name, p.competition), p.school || "", p.grade || "", p.bib_number || ""]));
+        });
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        ws["!cols"] = [8, 6, 14, 8, 8, 12, 16, 8, 8].map((w) => ({ wch: w }));
+        XLSX.utils.book_append_sheet(wb, ws, `${i + 1}일차 ${dayLabel(d).replace("/", "-")}`.replace(/[()]/g, ""));
+      });
+      const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      XLSX.writeFile(wb, `${activeCompetition}_출전선수명단_${ymd}.xlsx`);
+    } catch (err) {
+      alert(err.message || "엑셀을 만들지 못했습니다.");
+    } finally {
+      btn.disabled = false; btn.textContent = label;
+    }
   }
 
   container.addEventListener("click", (e) => {
