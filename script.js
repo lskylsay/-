@@ -167,6 +167,49 @@ function unlockScroll() {
   html.style.scrollBehavior = prev;
 }
 
+// 누구나 기록 입력: 숫자만 입력하면 시간 형식으로 바꿔 results 에 저장 (1212 → 12:12, 11212 → 1:12:12)
+function parseTimeInput(raw) {
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return null;
+  let h = 0, m = 0, s = 0;
+  if (digits.length <= 2) s = parseInt(digits, 10);
+  else if (digits.length <= 4) { const pd = digits.padStart(4, "0"); m = parseInt(pd.slice(0, 2), 10); s = parseInt(pd.slice(2), 10); }
+  else { s = parseInt(digits.slice(-2), 10); m = parseInt(digits.slice(-4, -2), 10); h = parseInt(digits.slice(0, -4), 10); }
+  const mm = String(m).padStart(2, "0"), ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+}
+
+let entryInput = null, entryMsg = null;
+if (overlay && overlayBody) {
+  const box = document.createElement("div");
+  box.className = "record-entry";
+  box.innerHTML = '<input type="text" inputmode="numeric" autocomplete="off" placeholder="기록 숫자 입력 (예: 1212 → 12:12)" aria-label="기록 입력">' +
+    '<button type="button" class="record-entry-save">기록 저장</button><span class="record-entry-msg" aria-live="polite"></span>';
+  overlayBody.after(box);
+  entryInput = box.querySelector("input");
+  entryMsg = box.querySelector(".record-entry-msg");
+  const saveBtn = box.querySelector("button");
+  const say = (t, ok) => { entryMsg.textContent = t; entryMsg.className = "record-entry-msg " + (ok ? "ok" : "err"); };
+  async function saveRecord() {
+    const row = overlayList[overlayIndex];
+    const rec = parseTimeInput(entryInput.value);
+    if (!row || !rec) { say("기록을 숫자로 입력해 주세요.", false); return; }
+    saveBtn.disabled = true;
+    const { data, error } = await supabase.from("results").upsert({
+      competition: row.competition, division: row.sport, rank: null, record_time: rec,
+      name: row.name, note: row.note || null, applications_id: row.application_id,
+    }, { onConflict: "applications_id" }).select();
+    saveBtn.disabled = false;
+    if (error || !data || !data.length) { say("저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.", false); return; }
+    row.record_time = rec;
+    fillOverlay(row);
+    say("저장했습니다.", true);
+    window.dispatchEvent(new Event("results:reload"));
+  }
+  saveBtn.addEventListener("click", saveRecord);
+  entryInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveRecord(); } });
+}
+
 function fillOverlay(row) {
   overlayFields.competition.textContent = competitionDisplayName(row.competition);
   overlayFields.sport.textContent = row.sport || "";
@@ -177,6 +220,7 @@ function fillOverlay(row) {
   overlayFields.name.textContent = displayName(row.name, row.competition);
   overlayFields.time.textContent = row.record_time || "기록 입력 전";
   overlayFields.time.classList.toggle("pending", !row.record_time);
+  if (entryInput) { entryInput.value = ""; entryMsg.textContent = ""; entryMsg.className = "record-entry-msg"; }
   if (overlayStatus && overlayList.length > 1) {
     overlayStatus.textContent = `${overlayList.length}명 중 ${overlayIndex + 1}번째`;
   }
@@ -255,6 +299,8 @@ if (overlay) {
 
   document.addEventListener("keydown", (e) => {
     if (overlay.hidden) return;
+    const typing = e.target && e.target.tagName === "INPUT";
+    if (typing && e.key !== "Escape" && e.key !== "Tab") return; // 기록 입력 중에는 화살표 이동 안 함
     if (e.key === "Escape") {
       // 전체화면 상태의 ESC는 브라우저가 전체화면만 해제 → 오버레이는 닫지 않음
       if (fullscreenElement() || Date.now() - fullscreenExitedAt < 500) return;
@@ -268,7 +314,7 @@ if (overlay) {
       step(1);
     } else if (e.key === "Tab") {
       // 포커스가 카드 밖으로 나가지 않도록
-      const focusables = Array.from(overlayCard.querySelectorAll("button")).filter((b) => !b.hidden);
+      const focusables = Array.from(overlayCard.querySelectorAll("button, input")).filter((b) => !b.hidden);
       if (focusables.length === 0) return;
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
