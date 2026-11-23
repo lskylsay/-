@@ -1,13 +1,15 @@
-// 결과 페이지 렌더링 — Supabase RPC get_public_results(comp)로 대회별 참가자 전체와 기록을 읽어
+// 결과 페이지 렌더링 — Supabase RPC로 대회별 참가자 전체와 기록을 읽어
 // 종목(sport)별로 배번순 표를 그립니다. 기록이 없는 참가자도 함께 표시됩니다.
 // 배번·이름을 누르면 기념촬영용 전체화면 기록 카드가 열립니다.
-// - 이름은 표와 카드 모두 실명 표시. MASK_PUBLIC_NAMES 를 true 로 바꾸면 가운데 글자를 가림 (홍길동 → 홍O동). 검색은 실명으로 동작
-// - 이 스크립트보다 먼저 window.RESULTS_SHOW_FULL_NAMES = true 를 두면 가림 설정과 관계없이 실명 표시 (경기기록원 결과 탭)
+// - 공개 화면(모든 대회 공통): 성명은 첫·끝 글자만 남기고 가운데 O(홍길동→홍O동), 학년은 공개·반은 비공개(5학년 2반→5학년).
+//   get_public_results_safe RPC를 쓰고, 없거나 오류이면 get_public_results 로 불러와 화면에서 같은 기준으로 가림(예비 처리)
+// - 이 스크립트보다 먼저 window.RESULTS_SHOW_FULL_NAMES = true 를 두면 실명·원래 학년으로 get_public_results 사용 (경기기록원 결과 탭)
 // - window에 "results:reload" 이벤트를 보내면 보고 있던 종목을 유지한 채 결과를 다시 불러옴
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const MASK_PUBLIC_NAMES = false; // true로 바꾸면 공개 페이지에서 이름 가운데 글자를 O로 가림
+// 업무용(경기기록원 결과 탭)이면 true → 실명·원래 학년
+const FULL = window.RESULTS_SHOW_FULL_NAMES === true;
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
@@ -33,11 +35,21 @@ function escapeHtml(value) {
   })[c]);
 }
 
+// 배번·application_id 는 RPC가 text 로 줄 수 있어 배번은 숫자로, application_id 는 문자열로 비교
+function normBib(b) {
+  if (b == null || String(b).trim() === "") return null;
+  const t = String(b).trim();
+  return /^\d+$/.test(t) ? Number(t) : t;
+}
 function byBib(a, b) {
-  if (a.bib_number == null && b.bib_number == null) return a.application_id - b.application_id;
-  if (a.bib_number == null) return 1;
-  if (b.bib_number == null) return -1;
-  return a.bib_number - b.bib_number;
+  const x = a.bib_number, y = b.bib_number;
+  if (x == null && y == null) return String(a.application_id).localeCompare(String(b.application_id), "ko", { numeric: true });
+  if (x == null) return 1;
+  if (y == null) return -1;
+  if (typeof x === "number" && typeof y === "number") return x - y;
+  if (typeof x === "number") return -1;
+  if (typeof y === "number") return 1;
+  return x.localeCompare(y, "ko", { numeric: true });
 }
 
 /* ============ 기념촬영용 전체화면 기록 카드 ============ */
@@ -49,33 +61,34 @@ const COMPETITION_DISPLAY_NAMES = {
   // 예) "충북교육감기 육상대회": "2026. 충북교육감기 육상대회",
 };
 
-// 이름의 첫·마지막 글자만 남기고 가운데를 O로 가림 (MASK_PUBLIC_NAMES 가 true 일 때 공개 화면에서 사용)
-// (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남OO수). 이름 중간의 띄어쓰기는 그대로 둠
+// 이름의 첫·마지막 글자만 남기고 가운데를 O로 가림 (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남OO수). 이름 중간의 띄어쓰기는 그대로 둠.
+// 이미 가린 값('홍O동', '이O', '남OO수')은 그대로 둠(안전 RPC 값에 다시 적용해도 같음)
 function maskName(name) {
   const chars = Array.from(String(name ?? "").trim().replace(/\s+/g, " "));
   if (chars.length <= 1) return chars.join("");
   if (chars.length === 2) return chars[0] + "O";
   const last = chars.length - 1;
+  if (chars.slice(1, last).every((c) => c === "O" || c === " ")) return chars.join("");
   return chars.map((c, i) => (i === 0 || i === last || c === " " ? c : "O")).join("");
 }
 
-// 이름 가림이 필요한 대회 (개인정보 보호): 공개 화면에서 성명의 두 번째 글자를 O로 바꿔 보여줌
-// (홍길동 → 홍O동, 이소 → 이O, 남궁민수 → 남O민수). 경기기록원 결과 탭(RESULTS_SHOW_FULL_NAMES)은 실명 그대로
-const MASKED_COMPETITIONS = ["트랙마라톤 축제"];
-function maskSecondChar(name) {
-  const chars = Array.from(String(name ?? "").trim().replace(/\s+/g, " "));
-  if (chars.length >= 2 && chars[1] !== " ") chars[1] = "O";
-  return chars.join("");
+// 화면에 보여줄 이름: 공개 화면은 모든 대회 maskName, 경기기록원 결과 탭(FULL)은 실명
+function displayName(name) {
+  return FULL ? String(name ?? "").trim() : maskName(name);
 }
 
-// 화면에 보여줄 이름: 기본은 실명. MASK_PUBLIC_NAMES 가 true 이면 모든 대회 가운데 글자 가림,
-// MASKED_COMPETITIONS 에 있는 대회는 두 번째 글자 가림. RESULTS_SHOW_FULL_NAMES 이면 언제나 실명
-function displayName(name, competition) {
-  if (window.RESULTS_SHOW_FULL_NAMES === true) return String(name ?? "").trim();
-  if (MASK_PUBLIC_NAMES) return maskName(name);
-  if (MASKED_COMPETITIONS.includes(competition)) return maskSecondChar(name);
-  return String(name ?? "").trim();
+// 학년만 남김 ("5학년 2반"→"5학년", "5-2"→"5학년", "2반"→""). 경기기록원 결과 탭(FULL)은 원래 값 그대로
+function gradeOnly(text) {
+  const t = String(text ?? "").trim();
+  if (!t) return "";
+  let m = t.match(/(\d+)\s*학년/);
+  if (m) return `${m[1]}학년`;
+  m = t.match(/^(\d+)\s*[-–—./]\s*\d+/);
+  if (m) return `${m[1]}학년`;
+  if (/^\d+$/.test(t)) return `${t}학년`;
+  return t.replace(/\d+\s*반/g, "").trim();
 }
+const gradeText = (g) => (FULL ? String(g ?? "").trim() : gradeOnly(g));
 
 function competitionDisplayName(name) {
   return COMPETITION_DISPLAY_NAMES[name] || name || "";
@@ -195,10 +208,22 @@ if (overlay && overlayBody) {
     const rec = parseTimeInput(entryInput.value);
     if (!row || !rec) { say("기록을 숫자로 입력해 주세요.", false); return; }
     saveBtn.disabled = true;
-    const { data, error } = await supabase.from("results").upsert({
-      competition: row.competition, division: row.sport, rank: null, record_time: rec,
-      name: row.name, note: row.note || null, applications_id: row.application_id,
-    }, { onConflict: "applications_id" }).select();
+    let data, error;
+    if (FULL) {
+      ({ data, error } = await supabase.from("results").upsert({
+        competition: row.competition, division: row.sport, rank: null, record_time: rec,
+        name: row.name, note: row.note || null, applications_id: row.application_id,
+      }, { onConflict: "applications_id" }).select());
+    } else {
+      // 공개 화면의 이름은 가린 값이므로 DB의 실명을 덮어쓰지 않도록 이름 없이 기존 행만 고침. 행이 없을 때만 새로 만듦
+      ({ data, error } = await supabase.from("results").update({ record_time: rec, rank: null }).eq("applications_id", row.application_id).select());
+      if (!error && (!data || !data.length)) {
+        ({ data, error } = await supabase.from("results").insert({
+          competition: row.competition, division: row.sport, rank: null, record_time: rec,
+          name: row.name, note: row.note || null, applications_id: row.application_id,
+        }).select());
+      }
+    }
     saveBtn.disabled = false;
     if (error || !data || !data.length) { say("저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.", false); return; }
     row.record_time = rec;
@@ -216,8 +241,8 @@ function fillOverlay(row) {
   overlayFields.bib.textContent = row.bib_number ?? "";
   overlayFields.bib.hidden = row.bib_number == null;
   overlayFields.bib.setAttribute("aria-label", row.bib_number != null ? `배번 ${row.bib_number}` : "");
-  overlayFields.school.textContent = [row.school, row.grade].filter(Boolean).join(" ");
-  overlayFields.name.textContent = displayName(row.name, row.competition);
+  overlayFields.school.textContent = [row.school, gradeText(row.grade)].filter(Boolean).join(" ");
+  overlayFields.name.textContent = displayName(row.name);
   overlayFields.time.textContent = row.record_time || "기록 입력 전";
   overlayFields.time.classList.toggle("pending", !row.record_time);
   if (entryInput) { entryInput.value = ""; entryMsg.textContent = ""; entryMsg.className = "record-entry-msg"; }
@@ -451,7 +476,7 @@ if (container && filterRow) {
   function matchesQuery(row) {
     if (!query) return true;
     if (/^\d+$/.test(query)) return String(row.bib_number ?? "").startsWith(query);
-    return String(row.name || "").replace(/\s/g, "").includes(query.replace(/\s/g, ""));
+    return String(displayName(row.name)).replace(/\s/g, "").includes(query.replace(/\s/g, ""));
   }
 
   function renderTable(groupRows) {
@@ -468,8 +493,8 @@ if (container && filterRow) {
               <tr>
                 <td>${r.bib_number != null ? `<button type="button" class="record-link bib-link" data-id="${r.application_id}">${r.bib_number}</button>` : ""}</td>
                 <td>${escapeHtml(r.school)}</td>
-                <td>${escapeHtml(r.grade)}</td>
-                <td><button type="button" class="record-link" data-id="${r.application_id}">${escapeHtml(displayName(r.name, r.competition)) || "(이름 없음)"}</button></td>
+                <td>${escapeHtml(gradeText(r.grade))}</td>
+                <td><button type="button" class="record-link" data-id="${r.application_id}">${escapeHtml(displayName(r.name)) || "(이름 없음)"}</button></td>
                 <td class="record-cell${r.record_time ? "" : " empty"}">${r.record_time ? escapeHtml(r.record_time) : "-"}</td>
                 <td style="color:var(--ink-soft);">${escapeHtml(r.note)}</td>
               </tr>`
@@ -526,8 +551,8 @@ if (container && filterRow) {
     const people = {};   // 종목 → 참가 학생 명단
     rows.forEach((r) => { counts[r.sport] = (counts[r.sport] || 0) + 1; (people[r.sport] ||= []).push(r); });
     const peopleHtml = (key) => (people[key] || []).map((r) => {
-      const info = [r.school, r.grade].filter(Boolean).join(" ");
-      return `<span class="tt-person">${escapeHtml(displayName(r.name, r.competition))}${info ? ` <small>${escapeHtml(info)}</small>` : ""}</span>`;
+      const info = [r.school, gradeText(r.grade)].filter(Boolean).join(" ");
+      return `<span class="tt-person">${escapeHtml(displayName(r.name))}${info ? ` <small>${escapeHtml(info)}</small>` : ""}</span>`;
     }).join("");
     const list = t.rows.filter((r) => r.date === activeDay && (activeKind === "전체" || r.kind === activeKind));
     const kinds = ["전체", "트랙", "필드"];
@@ -588,7 +613,7 @@ if (container && filterRow) {
         timetable.rows.filter((r) => r.date === d).forEach((r) => {
           const list = people[sportKeyOf(r)] || [];
           if (!list.length) { data.push([r.time, r.kind, r.event, r.bu, r.stage, "", "", "", ""]); return; }
-          list.forEach((p) => data.push([r.time, r.kind, r.event, r.bu, r.stage, displayName(p.name, p.competition), p.school || "", p.grade || "", p.bib_number || ""]));
+          list.forEach((p) => data.push([r.time, r.kind, r.event, r.bu, r.stage, displayName(p.name), p.school || "", gradeText(p.grade), p.bib_number ?? ""]));
         });
         const ws = XLSX.utils.aoa_to_sheet(data);
         ws["!cols"] = [8, 6, 14, 8, 8, 12, 16, 8, 8].map((w) => ({ wch: w }));
@@ -606,7 +631,7 @@ if (container && filterRow) {
   container.addEventListener("click", (e) => {
     const link = e.target.closest(".record-link");
     if (!link) return;
-    const row = visibleRows.find((r) => String(r.application_id) === link.dataset.id);
+    const row = visibleRows.find((r) => r.application_id === link.dataset.id);
     if (row) openOverlay(row, visibleRows);
   });
 
@@ -633,7 +658,13 @@ if (container && filterRow) {
       container.innerHTML = '<p class="empty-note">불러오는 중…</p>';
     }
 
-    const { data, error } = await supabase.rpc("get_public_results", { comp: activeCompetition });
+    let { data, error } = FULL
+      ? await supabase.rpc("get_public_results", { comp: activeCompetition })
+      : await supabase.rpc("get_public_results_safe", { comp: activeCompetition });
+    if (!FULL && (error || !Array.isArray(data))) {
+      // 안전 RPC가 없거나 오류 → 원래 RPC로 불러오되 아래 normRow 에서 이름·학년을 반드시 가림(예비 처리)
+      ({ data, error } = await supabase.rpc("get_public_results", { comp: activeCompetition }));
+    }
     if (token !== loadToken) return; // 그 사이 다른 대회를 선택한 경우 무시
 
     if (error) {
@@ -642,7 +673,10 @@ if (container && filterRow) {
       return;
     }
 
-    rows = (data || []).map((r) => ({ ...r, sport: r.sport || "기타" })).sort(byBib);
+    // 모든 칸이 text 로 올 수 있음 → 배번은 숫자, application_id 는 문자열. 공개 화면은 여기서도 이름·학년을 다시 가림
+    const normRow = (r) => ({ ...r, sport: r.sport || "기타", bib_number: normBib(r.bib_number), application_id: String(r.application_id),
+      ...(FULL ? {} : { name: maskName(r.name), grade: gradeOnly(r.grade) }) });
+    rows = (data || []).map(normRow).sort(byBib);
     sports = Array.from(new Set(rows.map((r) => r.sport))).sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
     activeSport = sports.includes(prevSport) ? prevSport : sports[0] || "";
     activeEvent = eventOf(activeSport);
