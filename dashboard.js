@@ -28,16 +28,23 @@ async function rpc(name, args) {
   } catch (e) { return []; }
 }
 
+async function loadBroken() {
+  try {
+    if (!teams.length) return;
+    const pw = await supabase.from("sport_pathways").select("*");
+    if (pw.error || !Array.isArray(pw.data)) return;
+    brokenCount = diagnose(teams, pw.data).filter((d) => d.broken.length).length;
+    render();
+  } catch (e) { /* 연계 정보가 없으면 이 줄은 숨김 */ }
+}
+
 async function init() {
   [trend, teams, awards] = await Promise.all([rpc("get_public_team_trend"), rpc("get_public_teams", { p_year: null }), rpc("get_public_awards", {})]);
   trend.sort((a, b) => a.year - b.year);
-  try {   // 연계 단절 종목 수 (연계 정보 테이블이 없으면 이 줄은 숨김)
-    const pw = await supabase.from("sport_pathways").select("*");
-    if (!pw.error && teams.length) brokenCount = diagnose(teams, pw.data || []).filter((d) => d.broken.length).length;
-  } catch (e) { brokenCount = null; }
   const years = [...new Set(awards.map((r) => r.year))].sort((a, b) => b - a);
   yearSel = years.length ? String(years[0]) : "";
   render();
+  loadBroken();   // 연계 단절 종목 수는 화면을 먼저 그린 뒤 채움 (테이블이 없거나 느려도 대시보드는 그대로)
 }
 
 // 표로 보기(접근성) 보조
