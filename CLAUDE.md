@@ -32,6 +32,20 @@
 - `style.css` — 전체 공통 스타일 (CSS 변수 `--ink`, `--line`, `--font-mono` 등)
 - `*-template.xlsx` — 신청/결과 업로드용 엑셀 양식 (admin에서 SheetJS `xlsx@0.18.5` CDN 사용)
 
+## 학교운동부 현황 (선택3, 1단계)
+- **테이블**(관리자 전용 RLS, 읽기·쓰기 모두 관리자 이메일만): `sport_teams`(year, sport, kind, school, level, team_name, founded, players_m/f, training_place, exp_gold/silver/bronze, exp_note, note, updated_at; unique(year, school, sport)) / `sport_staff`(year, sport, school, role, name, status, career_years, qualification, note) / `sport_athletes`(year, sport, school, team_type, name, gender, grade, detail, current_record, prev_gold/silver/bronze, target_record, expected, feature, support). 세 테이블 모두 `id` 칸으로 삭제·교체 처리.
+- **공개 RPC**: `get_public_teams(p_year int default null)`(null이면 최근 학년도; year, sport, kind, school, level, team_name, founded, players_m, players_f, training_place, directors, coaches) / `get_public_team_years()`(학년도 목록, 최신순).
+- **공개/비공개 원칙**: 학생·지도자 이름, 기록, 예상 메달은 공개 화면에 절대 보이지 않음. 공개 화면(`teams.html` + `teams-status.js`)은 위 RPC만 쓰고 테이블을 직접 읽지 않음. 이름·기록 등은 관리자 화면(admin.html 선택3)에서만 실명으로 봄.
+- **`teams-status.js`**: teams.html 맨 위 '운동부 현황'(학년도 선택[여러 해일 때만], 숫자 요약 4칸, 학교급·종목 필터, 학교×종목 표[첫 열 고정·가로 스크롤·합계 행/열], 학교 카드 모달[pdf-modal 재사용, Esc·바깥 클릭], 종목별 요약). 종목은 DB 값 기준(`SCHOOLPE_SPORTS`와 무관). RPC 오류·자료 없음이면 "현황 자료를 준비 중입니다". 아래 '자료실'은 기존 종목 탭 게시판. CSS `.ts-*`.
+- **관리자 조사표 업로드**(admin.html '선택3' 탭 위쪽 `#teamsSurveySection`, admin.js 맨 아래 `ts*` 함수): 학년도(기본 2027) + `.xlsx` 끌어놓기 → [미리보기](시트별 행 수·학교·종목·선수 수·학교명 표기 경고·읽지 못한 행) → [저장]. 시트·열 대응(머리글을 공백·줄바꿈 제거 후 이름으로 찾음, 그 아래 행부터):
+  - '운동부 현황' → `sport_teams`: 종목·구분(개인/단체)·학교명·학교급·운동부 명칭·창단 연도·선수 수(남/여)·훈련 장소·예상 금/은/동·예상 실적 설명·비고. 선수 수(계)·입상 계는 수식이라 읽지 않음.
+  - '감독·코치' → `sport_staff`: 종목·학교명·구분(role)·성명·신분·지도 경력·주요 자격·경력·비고
+  - '개인종목 선수' → `sport_athletes`(team_type='개인'): 세부종목(체급)→detail, 현재 기록, 전년도 금/은/동 기록, 목표 기록, 예상 실적, 맞춤 지원
+  - '단체종목 선수' → `sport_athletes`(team_type='단체'): 포지션→detail, 기량 특징→feature, 맞춤 지원→support
+  - 건너뜀: 비고가 '예시'인 행, 학교명에 ○△◇가 든 행, 종목·학교명이 빈 행. 학교명은 앞뒤 공백 제거(표기가 섞이면 미리보기에서 경고만).
+  - 저장 방식: **이 학교 것만 교체**(기본; 파일에 나온 학교의 그 학년도 자료만) / **이 학년도 전체 교체**(확인 한 번 더). 순서: 지울 옛 id 기억 → 새 자료 넣기(운동부는 `year,school,sport` upsert, 지도자·선수는 insert; 모두 `.select()`로 건수 확인) → 새 자료가 다 들어간 뒤 옛 id만 삭제. 도중 실패하면 새로 넣은 지도자·선수는 되돌리고 옛 자료는 그대로.
+  - 아래 목록: 학교 필터, 행별 삭제(그 학교·종목의 지도자·선수 명단 포함), '명단 보기'(관리자 실명 표시). '샘플 파일 다운로드'(`teams-sample.xlsx`)는 이 영역에 있음.
+
 ## 업무실 공문 초안 → 한글(.hwpx) 내려받기
 - `workroom.html` 공문 초안 탭의 "한글(.hwpx) 내려받기" 버튼 → `hwpx-docs.js`(`window.HwpxDocs`). JSZip은 CDN(`jszip@3.10.1`), 빌드 도구 없음
 - 방식: `templates/*.hwpx` fetch → JSZip → `Contents/section0.xml`을 DOMParser로 수정 → 다시 zip(mimetype 맨 앞·STORE, `header.xml` 등 나머지 그대로). 바꾼·복제한 문단은 `<hp:linesegarray>` 삭제, 복제 문단 id 새로 부여, 표 행 수정 시 `rowAddr`·`rowCnt` 맞춤, `Preview/PrvText.txt`는 새 본문

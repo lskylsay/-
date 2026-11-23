@@ -275,6 +275,45 @@
           <button id="logoutBtn5" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);">로그아웃</button>
         </div>
 
+        <!-- 운동부 현황 조사표 (선택3 탭에서만 보임) -->
+        <div id="teamsSurveySection" style="display:none; margin-bottom:32px; padding-bottom:24px; border-bottom:1px solid var(--line);">
+          <label class="field-label">운동부 현황 조사표</label>
+          <a href="teams-sample.xlsx" download class="btn btn-outline" style="margin:0 0 4px;">샘플 파일 다운로드 (.xlsx)</a>
+          <p class="sub" style="margin:0 0 12px; color:var(--clay);">※ 조사표에는 학생·지도자 성명, 기록 등 개인정보가 들어갑니다. 관리자만 볼 수 있으며, 공개 화면에는 학교·종목·선수 수·지도자 수만 나옵니다.</p>
+          <div class="form-row">
+            <div class="field">
+              <label for="tsYear">학년도 *</label>
+              <input type="number" id="tsYear" value="2027" min="2000" max="2100">
+            </div>
+            <div class="field">
+              <label>저장 방식</label>
+              <div>
+                <label style="display:block;"><input type="radio" name="tsMode" value="schools" checked> 이 학교 것만 교체 (파일에 나온 학교의 해당 학년도 자료만)</label>
+                <label style="display:block;"><input type="radio" name="tsMode" value="year"> 이 학년도 전체 교체</label>
+              </div>
+            </div>
+          </div>
+          <div class="dropzone" id="tsDropzone" tabindex="0">
+            <input type="file" id="tsFile" accept=".xlsx" class="dropzone-input">
+            <p class="dropzone-text">조사표 파일을 끌어다 놓거나 클릭하여 선택<span class="dropzone-sub">.xlsx</span></p>
+          </div>
+          <p id="tsFileName" class="sub" style="margin:6px 0 10px;"></p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline" id="tsPreviewBtn">미리보기</button>
+            <button type="button" class="btn btn-primary" id="tsSaveBtn" disabled>저장</button>
+          </div>
+          <p id="tsStatus" class="form-status"></p>
+          <div id="tsPreview"></div>
+
+          <h4 style="margin:28px 0 8px;">등록된 운동부 현황 <span id="tsListYear" class="sub"></span></h4>
+          <div class="field" style="max-width:260px;">
+            <label for="tsSchoolFilter">학교 필터</label>
+            <select id="tsSchoolFilter"><option value="">전체</option></select>
+          </div>
+          <p id="tsListCount" class="sub" style="margin-bottom:8px;"></p>
+          <div style="overflow-x:auto;" id="tsList"></div>
+        </div>
+
         <div style="margin-bottom:28px;">
           <label class="field-label" id="spFormTitle">새 게시물 등록</label>
           <a id="spSampleLink" href="teams-sample.xlsx" download class="btn btn-outline" style="display:none; margin:0 0 4px;">조사표 샘플 다운로드 (.xlsx)</a>
