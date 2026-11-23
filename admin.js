@@ -1388,7 +1388,8 @@ function setSpMode(mode) {
   document.getElementById("spSportField").style.display = mode === "teams" ? "" : "none";
   document.getElementById("spSampleLink").style.display = "none";   // 샘플 다운로드는 조사표 영역으로 이동
   document.getElementById("teamsSurveySection").style.display = mode === "teams" ? "" : "none";
-  if (mode === "teams") tsLoadList();
+  document.getElementById("awardsSection").style.display = mode === "teams" ? "" : "none";
+  if (mode === "teams") { tsLoadList(); axLoadAll(); }
   document.getElementById("spSampleNote").style.display = mode === "teams" ? "" : "none";   // 학교운동부 운영 현황은 종목별 탭으로 나뉨
   if (schoolpeLoaded) { renderSpFilters(); renderSpList(); }
 }
@@ -1837,6 +1838,280 @@ function tsRenderList() {
     }
     tsLoadList();
   }));
+}
+
+// ================= 성과 기록 관리 (선택3) — sport_awards =================
+// 선수명(athlete)은 관리자 전용 칸이며 공개 RPC get_public_awards 는 이 칸을 주지 않음.
+const axFile = document.getElementById("axFile");
+const axStatus = document.getElementById("axStatus");
+const axPreviewEl = document.getElementById("axPreview");
+const axSaveBtn = document.getElementById("axSaveBtn");
+initDropzone(document.getElementById("axDropzone"), axFile, document.getElementById("axFileName"));
+
+const AX_MEDAL_BY_PLACE = { 1: "금", 2: "은", 3: "동" };
+const AX_COMP_BIG = ["전국소년체육대회", "전국체육대회"];
+let axParsed = null;
+let axRows = [];
+let axEditId = null;
+function axSet(el, msg, kind) { el.textContent = msg; el.className = "form-status" + (kind ? " " + kind : ""); }
+
+function axDate(v) {
+  const t = tsText(v);
+  if (!t) return null;
+  if (/^\d{5}$/.test(t)) return new Date(Math.round((Number(t) - 25569) * 86400000)).toISOString().slice(0, 10);   // 엑셀 날짜 숫자
+  const m = t.match(/^(\d{4})[-./\s]+(\d{1,2})[-./\s]+(\d{1,2})/);
+  if (!m) throw new Error(`대회 일자를 읽지 못했습니다 (${t})`);
+  return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+}
+function axEnum(v, list, label) {
+  const t = tsText(v);
+  if (!t) return null;
+  if (!list.includes(t)) throw new Error(`${label}은(는) ${list.join("/")} 중 하나여야 합니다 (${t})`);
+  return t;
+}
+// 메달 칸 → 금/은/동, 비어 있으면 순위 1·2·3위로 계산
+function axMedal(rawMedal, place) {
+  const t = tsText(rawMedal);
+  if (t) {
+    const m = t[0];
+    if (!["금", "은", "동"].includes(m)) throw new Error(`메달은 금/은/동 중 하나여야 합니다 (${t})`);
+    return m;
+  }
+  return AX_MEDAL_BY_PLACE[place] || null;
+}
+
+function parseAwards(wb) {
+  const out = { errors: [], skippedExamples: 0 };
+  const rows = tsReadSheet(wb, "입상기록",
+    [["year", "^연도"], ["comp", "^대회명"], ["clevel", "^대회수준"], ["date", "^대회일자"], ["sport", "^종목"], ["detail", "^세부종목"],
+     ["school", "^학교명"], ["slevel", "^학교급"], ["gender", "^성별"], ["type", "^구분"], ["place", "^순위"], ["medal", "^메달"],
+     ["athlete", "^선수명"], ["record", "^기록"], ["note", "^비고"]],
+    ["^연도", "^대회명", "^종목", "^학교명"],
+    (g, line, col, { sport, school }) => {
+      const year = tsNum(g("year"), "연도");
+      if (year == null) throw new Error("연도가 비어 있습니다");
+      if (!g("comp")) throw new Error("대회명이 비어 있습니다");
+      const place = tsNum(g("place"), "순위");
+      const medal = axMedal(g("medal"), place);
+      if (place == null && !medal) throw new Error("순위 또는 메달이 필요합니다");
+      return {
+        year, competition: g("comp"), comp_level: axEnum(g("clevel"), ["전국", "도", "시군"], "대회 수준"), event_date: axDate(g("date")),
+        sport, detail: g("detail") || null, school: school.trim(), school_level: axEnum(g("slevel"), ["초", "중", "고"], "학교급") || tsLevel("", school.trim()),
+        gender: axEnum(g("gender"), ["남", "여", "혼성"], "성별"), team_type: axEnum(g("type"), ["개인", "단체"], "구분"),
+        place, medal, athlete: g("athlete") || null, record: g("record") || null, note: g("note") || null,
+      };
+    }, out, "입상 기록");
+  out.rows = rows;
+  return out;
+}
+const axCount = (rows) => ({ 금: rows.filter((r) => r.medal === "금").length, 은: rows.filter((r) => r.medal === "은").length, 동: rows.filter((r) => r.medal === "동").length });
+
+axFile.addEventListener("change", () => { axParsed = null; axSaveBtn.disabled = true; axPreviewEl.innerHTML = ""; });
+document.getElementById("axPreviewBtn").addEventListener("click", async () => {
+  const file = axFile.files[0];
+  if (!file) return axSet(axStatus, "성과 기록 파일(.xlsx)을 선택해 주세요.", "error");
+  try { axParsed = parseAwards(XLSX.read(await file.arrayBuffer(), { type: "array" })); }
+  catch (e) { axParsed = null; return axSet(axStatus, "파일을 읽지 못했습니다: " + e.message, "error"); }
+  const p = axParsed, c = axCount(p.rows);
+  axPreviewEl.innerHTML = `
+    <div style="margin:12px 0; line-height:1.7;"><b>${p.rows.length}건</b> 읽음 — 금 ${c.금} · 은 ${c.은} · 동 ${c.동} (메달 없음 ${p.rows.length - c.금 - c.은 - c.동}) · 예시 행 제외 ${p.skippedExamples}행</div>
+    ${p.errors.length ? `<details open style="margin:8px 0;"><summary style="color:var(--clay);">읽지 못한 행 ${p.errors.length}건</summary><ul>${p.errors.map((e) => `<li>${tsEsc(e.sheet)} ${e.row}행: ${tsEsc(e.reason)}</li>`).join("")}</ul></details>` : ""}
+    <div style="overflow-x:auto;"><table class="result-table"><thead><tr><th>연도</th><th>대회</th><th>종목</th><th>세부</th><th>학교</th><th>성별</th><th>구분</th><th>순위</th><th>메달</th><th>선수명</th><th>기록</th></tr></thead><tbody>
+    ${p.rows.map((r) => `<tr><td>${r.year}</td><td>${tsEsc(r.competition)}</td><td>${tsEsc(r.sport)}</td><td>${tsEsc(r.detail)}</td><td>${tsEsc(r.school)}</td><td>${tsEsc(r.gender)}</td><td>${tsEsc(r.team_type)}</td><td>${r.place ?? ""}</td><td>${tsEsc(r.medal)}</td><td>${tsEsc(r.athlete)}</td><td>${tsEsc(r.record)}</td></tr>`).join("")}
+    </tbody></table></div>`;
+  axSaveBtn.disabled = !p.rows.length;
+  axSet(axStatus, p.rows.length ? "미리보기를 확인한 뒤 [저장]을 누르세요." : "저장할 행이 없습니다.", p.rows.length ? "" : "error");
+});
+
+async function axOldIds(year, comp) {
+  const ids = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from("sport_awards").select("id").eq("year", year).eq("competition", comp).order("id").range(from, from + 999);
+    if (error) throw new Error("기존 기록 조회 실패: " + error.message);
+    ids.push(...data.map((r) => r.id));
+    if (data.length < 1000) break;
+  }
+  return ids;
+}
+axSaveBtn.addEventListener("click", async () => {
+  const p = axParsed;
+  if (!p) return;
+  const mode = document.querySelector('input[name="axMode"]:checked').value;
+  const combos = [...new Map(p.rows.map((r) => [r.year + "|" + r.competition, r])).values()];
+  if (mode === "replace" && !confirm(`다음 연도·대회의 기존 기록을 지우고 이 파일로 교체할까요?\n${combos.map((r) => `${r.year} ${r.competition}`).join("\n")}`)) return;
+  axSaveBtn.disabled = true;
+  axSet(axStatus, "저장 중…");
+  const inserted = [];
+  try {
+    let old = [];
+    if (mode === "replace") for (const r of combos) old.push(...(await axOldIds(r.year, r.competition)));   // 지울 옛 id를 먼저 기억
+    await tsChunked(p.rows, async (chunk) => {                                                               // 새 기록을 먼저 넣음
+      const { data, error } = await supabase.from("sport_awards").insert(chunk).select("id");
+      if (error) throw new Error("저장 실패: " + error.message);
+      if (!data || data.length !== chunk.length) throw new Error(`저장 건수가 맞지 않습니다 (${data ? data.length : 0}/${chunk.length})`);
+      inserted.push(...data.map((r) => r.id));
+    });
+    old = [...new Set(old)];
+    let deleted = 0, failed = 0;
+    await tsChunked(old, async (chunk) => {                                                                  // 다 들어간 뒤에 옛 기록 삭제
+      const { data, error } = await supabase.from("sport_awards").delete().in("id", chunk).select("id");
+      const n = error ? 0 : (data || []).length;
+      deleted += n; failed += chunk.length - n;
+    });
+    const msg = `저장 완료: ${p.rows.length}건 등록` + (mode === "replace" ? `, 옛 기록 ${deleted}건 정리` : "");
+    axSet(axStatus, failed ? msg + ` (옛 기록 ${failed}건은 지우지 못했습니다 — 권한을 확인하세요)` : msg, failed ? "error" : "success");
+    axParsed = null;
+  } catch (e) {
+    await tsChunked(inserted, (chunk) => supabase.from("sport_awards").delete().in("id", chunk));
+    axSet(axStatus, e.message + " — 기존 기록은 지우지 않았습니다.", "error");
+    axSaveBtn.disabled = false;
+  }
+  axLoadAll();
+});
+
+// ---- 직접 입력 / 수정 ----
+const axf = (id) => document.getElementById("axf" + id);
+function axFormClear() {
+  axEditId = null;
+  ["Comp", "Date", "Sport", "Detail", "School", "Place", "Athlete", "Record", "Note"].forEach((k) => (axf(k).value = ""));
+  ["LevelC", "Level", "Gender", "Type", "Medal"].forEach((k) => (axf(k).value = ""));
+  document.getElementById("axFormTitle").textContent = "한 건 직접 입력";
+  axf("SaveBtn").textContent = "등록";
+  axf("CancelBtn").style.display = "none";
+}
+axf("CancelBtn").addEventListener("click", () => { axFormClear(); axSet(axf("Status"), ""); });
+axf("SaveBtn").addEventListener("click", async () => {
+  const st = axf("Status");
+  const v = (k) => axf(k).value.trim();
+  const year = Number(v("Year")), place = v("Place") === "" ? null : Number(v("Place"));
+  if (!year || !v("Comp") || !v("Sport") || !v("School")) return axSet(st, "연도·대회명·종목·학교명은 필수입니다.", "error");
+  if (place != null && !(place >= 1)) return axSet(st, "순위는 1 이상의 숫자로 적어 주세요.", "error");
+  const medal = v("Medal") || AX_MEDAL_BY_PLACE[place] || null;
+  if (place == null && !medal) return axSet(st, "순위 또는 메달을 적어 주세요.", "error");
+  const row = { year, competition: v("Comp"), comp_level: v("LevelC") || null, event_date: v("Date") || null, sport: v("Sport"), detail: v("Detail") || null,
+    school: v("School"), school_level: v("Level") || tsLevel("", v("School")), gender: v("Gender") || null, team_type: v("Type") || null,
+    place, medal, athlete: v("Athlete") || null, record: v("Record") || null, note: v("Note") || null };
+  axf("SaveBtn").disabled = true;
+  const q = axEditId ? supabase.from("sport_awards").update(row).eq("id", axEditId).select("id") : supabase.from("sport_awards").insert([row]).select("id");
+  const { data, error } = await q;
+  axf("SaveBtn").disabled = false;
+  if (error) return axSet(st, "저장 실패: " + error.message, "error");
+  if (!data || data.length !== 1) return axSet(st, "저장되지 않았습니다. 권한을 확인하세요.", "error");
+  axSet(st, axEditId ? "수정되었습니다." : "등록되었습니다.", "success");
+  axFormClear();
+  axLoadAll();
+});
+
+// ---- 목록 ----
+async function axFetchAll() {
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from("sport_awards").select("*").order("year", { ascending: false }).order("id").range(from, from + 999);
+    if (error) throw new Error(error.message);
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  return rows;
+}
+async function axLoadAll() {
+  try { axRows = await axFetchAll(); } catch (e) { document.getElementById("axlCount").textContent = "불러오기 실패: " + e.message; return; }
+  const fill = (id, vals) => { const el = document.getElementById(id), cur = el.value; el.innerHTML = '<option value="">전체</option>' + vals.map((x) => `<option>${tsEsc(x)}</option>`).join(""); el.value = vals.map(String).includes(cur) ? cur : ""; };
+  fill("axlYear", [...new Set(axRows.map((r) => r.year))].sort((a, b) => b - a));
+  fill("axlComp", [...new Set(axRows.map((r) => r.competition))].sort((a, b) => a.localeCompare(b, "ko")));
+  fill("axlSchool", [...new Set(axRows.map((r) => r.school))].sort((a, b) => a.localeCompare(b, "ko")));
+  axRenderList();
+  axRenderExpect();
+  try {   // 자동완성 목록 (sport_teams)
+    const { data } = await supabase.from("sport_teams").select("school,sport").range(0, 999);
+    const u = (k) => [...new Set((data || []).map((r) => r[k]))].sort((a, b) => a.localeCompare(b, "ko")).map((x) => `<option value="${tsEsc(x)}">`).join("");
+    document.getElementById("axSchoolList").innerHTML = u("school");
+    document.getElementById("axSportList").innerHTML = u("sport");
+  } catch (e) { /* 자동완성은 없어도 됨 */ }
+}
+["axlYear", "axlComp", "axlSchool"].forEach((id) => document.getElementById(id).addEventListener("change", axRenderList));
+
+function axRenderList() {
+  const y = document.getElementById("axlYear").value, c = document.getElementById("axlComp").value, sc = document.getElementById("axlSchool").value;
+  const rows = axRows.filter((r) => (!y || String(r.year) === y) && (!c || r.competition === c) && (!sc || r.school === sc));
+  const shown = rows.slice(0, 500);
+  document.getElementById("axlCount").textContent = `총 ${rows.length}건` + (rows.length > shown.length ? ` (앞 ${shown.length}건만 표시 — 필터로 좁혀 보세요)` : "");
+  const host = document.getElementById("axlList");
+  if (!rows.length) { host.innerHTML = '<p class="empty-note">기록이 없습니다.</p>'; return; }
+  host.innerHTML = `<table class="result-table"><thead><tr><th><input type="checkbox" id="axlAll" aria-label="전체선택"></th><th>연도</th><th>대회</th><th>종목</th><th>세부</th><th>학교</th><th>성별</th><th>구분</th><th>순위</th><th>메달</th><th>선수명</th><th>기록</th><th></th></tr></thead><tbody>` +
+    shown.map((r) => `<tr><td><input type="checkbox" class="axlChk" value="${r.id}"></td><td>${r.year}</td><td>${tsEsc(r.competition)}</td><td>${tsEsc(r.sport)}</td><td>${tsEsc(r.detail)}</td><td>${tsEsc(r.school)}</td><td>${tsEsc(r.gender)}</td><td>${tsEsc(r.team_type)}</td><td>${r.place ?? ""}</td><td>${tsEsc(r.medal)}</td><td>${tsEsc(r.athlete)}</td><td>${tsEsc(r.record)}</td>
+      <td style="white-space:nowrap;"><button type="button" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);" data-ax-edit="${r.id}">수정</button> <button type="button" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);" data-ax-del="${r.id}">삭제</button></td></tr>`).join("") + "</tbody></table>";
+  document.getElementById("axlAll").addEventListener("change", (e) => host.querySelectorAll(".axlChk").forEach((b) => (b.checked = e.target.checked)));
+  host.querySelectorAll("[data-ax-del]").forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm("이 기록을 삭제할까요?")) return;
+    const n = await axDelete([b.dataset.axDel]);
+    if (n !== 1) alert("삭제되지 않았습니다. 권한을 확인하세요.");
+    axLoadAll();
+  }));
+  host.querySelectorAll("[data-ax-edit]").forEach((b) => b.addEventListener("click", () => {
+    const r = axRows.find((x) => String(x.id) === b.dataset.axEdit);
+    if (!r) return;
+    axEditId = r.id;
+    const set = { Year: r.year, Comp: r.competition, LevelC: r.comp_level, Date: r.event_date, Sport: r.sport, Detail: r.detail, School: r.school, Level: r.school_level, Gender: r.gender, Type: r.team_type, Place: r.place, Medal: r.medal, Athlete: r.athlete, Record: r.record, Note: r.note };
+    Object.entries(set).forEach(([k, val]) => (axf(k).value = val ?? ""));
+    document.getElementById("axFormTitle").textContent = "기록 수정";
+    axf("SaveBtn").textContent = "수정 저장";
+    axf("CancelBtn").style.display = "";
+    axf("Year").scrollIntoView({ block: "center" });
+  }));
+}
+async function axDelete(ids) {
+  let n = 0;
+  await tsChunked(ids, async (chunk) => {
+    const { data, error } = await supabase.from("sport_awards").delete().in("id", chunk).select("id");
+    if (!error) n += (data || []).length;
+  });
+  return n;
+}
+document.getElementById("axlDelSel").addEventListener("click", async () => {
+  const ids = [...document.querySelectorAll(".axlChk:checked")].map((b) => b.value);
+  if (!ids.length) return alert("삭제할 기록을 체크해 주세요.");
+  if (!confirm(`체크한 ${ids.length}건을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+  const n = await axDelete(ids);
+  if (n !== ids.length) alert(`${ids.length}건 중 ${n}건만 삭제되었습니다. 권한을 확인하세요.`);
+  axLoadAll();
+});
+
+// ---- 예상 대비 실적 ----
+const axSchoolKey = (s) => tsNorm(s).replace(/학교$/, "");   // '○○중학교' / '○○중' 을 같게 봄
+const axeYear = document.getElementById("axeYear");
+axeYear.addEventListener("change", axRenderExpect);
+async function axRenderExpect() {
+  const box = document.getElementById("axeBox");
+  const year = Number(axeYear.value);
+  if (!year) { box.innerHTML = ""; return; }
+  let teams = [], awards = [];
+  try {
+    teams = await tsFetchAll("sport_teams", year);
+    const { data, error } = await supabase.from("sport_awards").select("*").eq("year", year).in("competition", AX_COMP_BIG).range(0, 4999);
+    if (error) throw new Error(error.message);
+    awards = data || [];
+  } catch (e) { box.innerHTML = `<p class="empty-note">불러오기 실패: ${tsEsc(e.message)}</p>`; return; }
+  const map = new Map();
+  const slot = (school, sport) => {
+    const k = axSchoolKey(school) + "|" + tsNorm(sport);
+    if (!map.has(k)) map.set(k, { school, sport, e: [0, 0, 0], a: [0, 0, 0] });
+    return map.get(k);
+  };
+  teams.forEach((t) => { const r = slot(t.school, t.sport); r.school = t.school; r.e = [t.exp_gold || 0, t.exp_silver || 0, t.exp_bronze || 0]; });
+  awards.forEach((a) => { const i = ["금", "은", "동"].indexOf(a.medal); if (i >= 0) slot(a.school, a.sport).a[i]++; });
+  const rows = [...map.values()].sort((x, y) => x.school.localeCompare(y.school, "ko") || x.sport.localeCompare(y.sport, "ko"));
+  if (!rows.length) { box.innerHTML = '<p class="empty-note">이 연도에 비교할 자료가 없습니다.</p>'; return; }
+  const sum = (k) => [0, 1, 2].map((i) => rows.reduce((a, r) => a + r[k][i], 0));
+  const E = sum("e"), A = sum("a");
+  const d = (a, e) => { const x = a - e; return x > 0 ? `+${x}` : x < 0 ? `−${Math.abs(x)}` : "0"; };
+  const dcls = (a, e) => (a - e > 0 ? "color:#2E7D32;" : a - e < 0 ? "color:var(--clay);" : "");
+  const cells = (e, a) => [0, 1, 2].map((i) => `<td>${e[i]}</td>`).join("") + [0, 1, 2].map((i) => `<td>${a[i]}</td>`).join("") + [0, 1, 2].map((i) => `<td style="${dcls(a[i], e[i])}">${d(a[i], e[i])}</td>`).join("");
+  box.innerHTML = `<table class="result-table"><thead>
+    <tr><th rowspan="2">학교</th><th rowspan="2">종목</th><th colspan="3">예상</th><th colspan="3">실적</th><th colspan="3">차이(실적−예상)</th></tr>
+    <tr><th>금</th><th>은</th><th>동</th><th>금</th><th>은</th><th>동</th><th>금</th><th>은</th><th>동</th></tr></thead><tbody>
+    <tr style="font-weight:700; background:#F4F4EE;"><td colspan="2">합계</td>${cells(E, A)}</tr>
+    ${rows.map((r) => `<tr><td>${tsEsc(r.school)}</td><td>${tsEsc(r.sport)}</td>${cells(r.e, r.a)}</tr>`).join("")}
+    </tbody></table>`;
 }
 
 checkAuthAndRender();
