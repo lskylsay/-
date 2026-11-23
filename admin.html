@@ -85,10 +85,37 @@
               <p class="dropzone-text">파일을 끌어다 놓거나 클릭하여 선택<span class="dropzone-sub">.xlsx, .xls</span></p>
             </div>
             <p id="rosterUploadFileName" class="sub" style="margin:6px 0 10px;"></p>
-            <button type="button" class="btn btn-primary" id="rosterUploadBtn">업로드</button>
+            <label class="checkbox-label" style="margin:8px 0 12px;">
+              <input type="checkbox" id="rosterConsent">
+              <span><strong>(필수)</strong> 참가 학생(만 14세 미만은 보호자 포함)의 개인정보 수집·이용, 국외 보관 및 결과 공개(성명 일부 가림) 동의서를 받아 학교에 보관하고 있습니다.</span>
+            </label>
+            <button type="button" class="btn btn-primary" id="rosterUploadBtn" disabled>업로드</button>
             <p id="rosterUploadStatus" class="form-status"></p>
           </div>
         </div>
+
+        <!-- 개인정보 파기 · 업로드 원본 파일 관리 -->
+        <details id="purgeBox" style="border:1px solid var(--line); border-radius:8px; padding:12px 16px; margin-bottom:24px;">
+          <summary style="cursor:pointer; font-weight:700;">개인정보 파기 · 업로드 원본 파일 관리</summary>
+          <h4 style="margin:14px 0 6px;">대회별 신청·결과 파기</h4>
+          <p class="sub" style="margin:0 0 8px;">보유기간이 지난 대회의 신청자 명단·결과(실명)를 삭제합니다. 삭제한 자료는 되돌릴 수 없습니다.</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+            <div class="field" style="margin:0;"><label for="purgeCompetition">대회</label>
+              <select id="purgeCompetition"><option value="">선택</option><option value="트랙마라톤 축제">트랙마라톤 축제</option><option value="충북교육감기 육상대회">충북교육감기 육상대회</option></select></div>
+            <button type="button" class="btn btn-outline" id="purgeCheckBtn">파기 대상 확인</button>
+            <button type="button" class="btn btn-primary" id="purgeRunBtn" disabled>파기 실행</button>
+          </div>
+          <p id="purgeStatus" class="form-status"></p>
+          <div id="purgeResult"></div>
+
+          <h4 style="margin:18px 0 6px;">업로드 원본 파일 (bulk-uploads 저장소)</h4>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+            <button type="button" class="btn btn-outline" id="fileListBtn">파일 목록 불러오기</button>
+            <button type="button" class="btn btn-ghost" id="fileDelBtn" style="color:var(--ink); border-color:var(--line);" disabled>선택 삭제</button>
+          </div>
+          <p id="fileStatus" class="form-status"></p>
+          <div id="fileList" style="overflow-x:auto;"></div>
+        </details>
 
         <div class="filter-row" id="filterRow"></div>
         <div class="filter-row" id="sortRow" style="margin-top:-8px;"></div>
@@ -496,6 +523,7 @@
   <div class="wrap">
     <span>마이스포츠클럽 · 2026 제천 학교스포츠클럽 대회</span>
     <span>관리자 전용 페이지</span>
+    <span><a href="privacy.html" class="footer-privacy" style="color:inherit; font-weight:700;">개인정보 처리방침</a></span>
   </div>
 </footer>
 

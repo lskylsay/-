@@ -1827,3 +1827,11 @@ body.modal-open { overflow: hidden; }
   .pw-card .pw-link { display: block; }
   .map-box { height: 380px; }
 }
+
+/* ---------- 개인정보 처리방침 / 자리표시 ---------- */
+.ph { background: #FFF200; color: #000; font-weight: 700; padding: 0 4px; border-radius: 3px; }
+.privacy-doc h3 { margin: 28px 0 8px; font-size: 1.1rem; color: var(--navy); }
+.privacy-doc p, .privacy-doc li { line-height: 1.75; }
+.privacy-doc .ts-scroll { margin: 8px 0 12px; }
+.privacy-doc table th, .privacy-doc table td { white-space: normal; text-align: left; vertical-align: top; }
+.footer-privacy { color: inherit; font-weight: 700; }

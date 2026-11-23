@@ -520,7 +520,16 @@ function askUploadMode({ competition, existing, incoming, recorded }) {
   });
 }
 
+// 동의서 보관 확인을 체크하기 전에는 업로드할 수 없음
+const rosterConsent = document.getElementById("rosterConsent");
+rosterConsent.addEventListener("change", () => { rosterUploadBtn.disabled = !rosterConsent.checked; });
+
 rosterUploadBtn.addEventListener("click", async () => {
+  if (!rosterConsent.checked) {
+    rosterUploadStatus.textContent = "학생(보호자) 동의서를 받아 학교에 보관하고 있음을 체크해 주세요.";
+    rosterUploadStatus.className = "form-status error";
+    return;
+  }
   const file = rosterUploadFile.files[0];
   const competition = document.getElementById("rosterUploadCompetition").value;
 
@@ -591,7 +600,7 @@ rosterUploadBtn.addEventListener("click", async () => {
         ? "등록할 신청자가 없습니다. 조사표에 학생 이름이 입력된 행이 있는지 확인해 주세요. ((예시) 행은 제외됩니다)"
         : "유효한 행이 없습니다. '배번/소속/성명' 또는 '학교명/성명/급별' 등의 열 제목이 있는 시트인지 확인해 주세요.";
       rosterUploadStatus.className = "form-status error";
-      rosterUploadBtn.disabled = false;
+      rosterUploadBtn.disabled = !rosterConsent.checked;
       return;
     }
 
@@ -605,7 +614,7 @@ rosterUploadBtn.addEventListener("click", async () => {
       if (mode === "cancel") {
         rosterUploadStatus.textContent = "등록을 취소했습니다.";
         rosterUploadStatus.className = "form-status";
-        rosterUploadBtn.disabled = false;
+        rosterUploadBtn.disabled = !rosterConsent.checked;
         return;
       }
       if (mode === "replace") {
@@ -623,7 +632,7 @@ rosterUploadBtn.addEventListener("click", async () => {
     const { error } = await supabase.from("applications").insert(parsed);
 
     if (error) {
-      rosterUploadBtn.disabled = false;
+      rosterUploadBtn.disabled = !rosterConsent.checked;
       rosterUploadStatus.textContent = "업로드 실패: " + error.message + (mode === "replace" ? " (기존 자료는 그대로 남아 있습니다)" : "");
       rosterUploadStatus.className = "form-status error";
       return;
@@ -646,7 +655,7 @@ rosterUploadBtn.addEventListener("click", async () => {
       }
     }
 
-    rosterUploadBtn.disabled = false;
+    rosterUploadBtn.disabled = !rosterConsent.checked;
 
     rosterUploadStatus.textContent =
       `총 ${parsed.length}명 등록 완료 [${sheetSummaries.join(", ")}]` +
@@ -657,7 +666,7 @@ rosterUploadBtn.addEventListener("click", async () => {
     document.getElementById("rosterUploadDropzone").classList.remove("has-file");
     loadRoster();
   } catch (err) {
-    rosterUploadBtn.disabled = false;
+    rosterUploadBtn.disabled = !rosterConsent.checked;
     rosterUploadStatus.textContent = "파일을 읽는 중 오류가 발생했습니다: " + err.message;
     rosterUploadStatus.className = "form-status error";
   }
@@ -2291,6 +2300,119 @@ document.getElementById("rpDownloadBtn").addEventListener("click", async () => {
     downloadBlob(blob, window.HwpxDocs.teamReportFileName(model));
     rpSet("한글 파일을 만들었습니다. 한글에서 열어 표·줄바꿈·쪽수를 꼭 확인해 주세요.", "success");
   } catch (e) { rpSet("한글 파일 만들기 실패: " + e.message, "error"); }
+});
+
+// ================= 개인정보 파기 · 업로드 원본 파일 관리 =================
+const purgeSel = document.getElementById("purgeCompetition");
+const purgeStatus = document.getElementById("purgeStatus");
+const purgeRunBtn = document.getElementById("purgeRunBtn");
+let purgeCounts = null;
+const purgeSet = (msg, kind) => { purgeStatus.textContent = msg; purgeStatus.className = "form-status" + (kind ? " " + kind : ""); };
+const PURGE_TABLES = [["results", "대회 결과(results)"], ["applications", "신청자(applications)"], ["bulk_applications", "교사 일괄 신청(bulk_applications)"]];
+purgeSel.addEventListener("change", () => { purgeCounts = null; purgeRunBtn.disabled = true; document.getElementById("purgeResult").innerHTML = ""; });
+
+async function purgeCount(table, comp) {
+  const { count, error } = await supabase.from(table).select("id", { count: "exact", head: true }).eq("competition", comp);
+  if (error) throw new Error(`${table} 건수 확인 실패: ${error.message}`);
+  return count || 0;
+}
+document.getElementById("purgeCheckBtn").addEventListener("click", async () => {
+  const comp = purgeSel.value;
+  if (!comp) return purgeSet("대회를 선택해 주세요.", "error");
+  purgeSet("건수를 확인하는 중…");
+  try {
+    const c = {};
+    for (const [t] of PURGE_TABLES) c[t] = await purgeCount(t, comp);
+    purgeCounts = { comp, ...c };
+    document.getElementById("purgeResult").innerHTML = `<p><b>${tsEsc(comp)}</b> 파기 대상: ${PURGE_TABLES.map(([t, l]) => `${l} ${c[t]}건`).join(" · ")}</p>`;
+    const sum = PURGE_TABLES.reduce((a, [t]) => a + c[t], 0);
+    purgeRunBtn.disabled = sum === 0;
+    purgeSet(sum ? "대상을 확인한 뒤 [파기 실행]을 누르세요." : "파기할 자료가 없습니다.", sum ? "" : "success");
+  } catch (e) { purgeSet(e.message, "error"); }
+});
+
+async function purgeDeleteAll(table, comp) {
+  const ids = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from(table).select("id").eq("competition", comp).order("id").range(from, from + 999);
+    if (error) throw new Error(`${table} 조회 실패: ${error.message}`);
+    ids.push(...data.map((r) => r.id));
+    if (data.length < 1000) break;
+  }
+  let deleted = 0;
+  await tsChunked(ids, async (chunk) => {
+    const { data, error } = await supabase.from(table).delete().in("id", chunk).select("id");
+    if (error) throw new Error(`${table} 삭제 실패: ${error.message}`);
+    deleted += (data || []).length;
+  });
+  return { found: ids.length, deleted };
+}
+purgeRunBtn.addEventListener("click", async () => {
+  const pc = purgeCounts;
+  if (!pc) return;
+  const sumTxt = PURGE_TABLES.map(([t, l]) => `${l} ${pc[t]}건`).join("\n");
+  if (!confirm(`[${pc.comp}] 다음 자료를 완전히 삭제합니다.\n${sumTxt}\n\n되돌릴 수 없습니다. 계속할까요?`)) return;
+  const typed = prompt(`한 번 더 확인합니다. 파기하려면 '파기'라고 입력하세요.`);
+  if (typed !== "파기") return purgeSet("입력이 달라 파기를 취소했습니다.", "error");
+  purgeRunBtn.disabled = true;
+  purgeSet("파기 중…");
+  const done = {}; const when = new Date();
+  try {
+    for (const [t] of PURGE_TABLES) done[t] = await purgeDeleteAll(t, pc.comp);   // 결과 → 신청 → 일괄 신청 순
+  } catch (e) { purgeSet(e.message + " — 일부만 삭제되었을 수 있으니 [파기 대상 확인]으로 다시 확인하세요.", "error"); return; }
+  const short = PURGE_TABLES.filter(([t]) => done[t].deleted !== done[t].found);
+  const stamp = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, "0")}-${String(when.getDate()).padStart(2, "0")} ${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`;
+  document.getElementById("purgeResult").innerHTML = `<p><b>파기 결과</b> — 대회: ${tsEsc(pc.comp)} · 일시: ${stamp}</p>
+    <ul>${PURGE_TABLES.map(([t, l]) => `<li>${l}: 대상 ${done[t].found}건 → 삭제 ${done[t].deleted}건</li>`).join("")}</ul>
+    <button type="button" class="btn btn-outline" id="purgeCsvBtn">파기 기록(건수) CSV 내려받기</button>`;
+  document.getElementById("purgeCsvBtn").addEventListener("click", () => {
+    const csv = "﻿일시,대회,구분,대상 건수,삭제 건수\n" + PURGE_TABLES.map(([t]) => `${stamp},"${pc.comp}",${t},${done[t].found},${done[t].deleted}`).join("\n") + "\n";
+    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `개인정보파기기록_${pc.comp}_${stamp.replace(/[- :]/g, "").slice(0, 12)}.csv`);
+  });
+  purgeCounts = null;
+  purgeSet(short.length ? `일부가 삭제되지 않았습니다(${short.map(([, l]) => l).join(", ")}) — 권한을 확인하세요.` : "파기를 마쳤습니다. 아래 기록을 내려받아 보관하세요.", short.length ? "error" : "success");
+  loadRoster();
+});
+
+// ---- bulk-uploads 저장소 원본 파일 ----
+const fileStatus = document.getElementById("fileStatus");
+const fileDelBtn = document.getElementById("fileDelBtn");
+const fileSet = (msg, kind) => { fileStatus.textContent = msg; fileStatus.className = "form-status" + (kind ? " " + kind : ""); };
+document.getElementById("fileListBtn").addEventListener("click", loadStorageFiles);
+async function loadStorageFiles() {
+  fileSet("불러오는 중…");
+  const { data, error } = await supabase.storage.from("bulk-uploads").list("", { limit: 1000, sortBy: { column: "created_at", order: "desc" } });
+  if (error) return fileSet("목록을 불러오지 못했습니다: " + error.message, "error");
+  const files = (data || []).filter((f) => f.id);   // 폴더 제외
+  let names = {};
+  try {
+    const { data: b } = await supabase.from("bulk_applications").select("file_path,file_name,competition,school");
+    (b || []).forEach((r) => (names[r.file_path] = r));
+  } catch (e) { /* 원래 이름은 없어도 됨 */ }
+  const host = document.getElementById("fileList");
+  if (!files.length) { host.innerHTML = '<p class="empty-note">저장된 원본 파일이 없습니다.</p>'; fileSet(""); fileDelBtn.disabled = true; return; }
+  host.innerHTML = `<table class="result-table"><thead><tr><th><input type="checkbox" id="fileAll" aria-label="전체선택"></th><th>파일</th><th>원래 이름</th><th>대회·학교</th><th>크기</th><th>올린 일시</th></tr></thead><tbody>` +
+    files.map((f) => { const n = names[f.name]; const kb = f.metadata && f.metadata.size ? Math.ceil(f.metadata.size / 1024) + "KB" : "";
+      return `<tr><td><input type="checkbox" class="fileChk" value="${tsEsc(f.name)}"></td><td>${tsEsc(f.name)}</td><td>${tsEsc(n ? n.file_name : "(연결된 신청 없음)")}</td><td>${tsEsc(n ? [n.competition, n.school].filter(Boolean).join(" · ") : "")}</td><td>${kb}</td><td>${tsEsc(f.created_at ? new Date(f.created_at).toLocaleString("ko-KR") : "")}</td></tr>`; }).join("") + "</tbody></table>";
+  fileSet(`파일 ${files.length}개`);
+  fileDelBtn.disabled = false;
+  document.getElementById("fileAll").addEventListener("change", (e) => host.querySelectorAll(".fileChk").forEach((c) => (c.checked = e.target.checked)));
+}
+fileDelBtn.addEventListener("click", async () => {
+  const names = [...document.querySelectorAll(".fileChk:checked")].map((c) => c.value);
+  if (!names.length) return fileSet("삭제할 파일을 체크해 주세요.", "error");
+  if (!confirm(`체크한 원본 파일 ${names.length}개를 삭제할까요? 되돌릴 수 없습니다.`)) return;
+  let deleted = 0;
+  for (let i = 0; i < names.length; i += 100) {
+    const { data, error } = await supabase.storage.from("bulk-uploads").remove(names.slice(i, i + 100));
+    if (error) return fileSet("삭제 실패: " + error.message, "error");
+    deleted += (data || []).length;
+  }
+  if (deleted !== names.length) fileSet(`${names.length}개 중 ${deleted}개만 삭제되었습니다. 권한을 확인하세요.`, "error");
+  else fileSet(`${deleted}개를 삭제했습니다.`, "success");
+  const keep = fileStatus.textContent, kind = fileStatus.className;
+  await loadStorageFiles();
+  fileStatus.textContent = keep; fileStatus.className = kind;
 });
 
 checkAuthAndRender();
