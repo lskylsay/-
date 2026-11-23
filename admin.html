@@ -314,6 +314,79 @@
           <div style="overflow-x:auto;" id="tsList"></div>
         </div>
 
+        <!-- 성과 기록 관리 (선택3 탭에서만 보임) -->
+        <div id="awardsSection" style="display:none; margin-bottom:32px; padding-bottom:24px; border-bottom:1px solid var(--line);">
+          <label class="field-label">성과 기록 관리 (입상 기록)</label>
+          <a href="awards-template.xlsx" download class="btn btn-outline" style="margin:0 0 4px;">성과 기록 양식 다운로드 (.xlsx)</a>
+          <p class="sub" style="margin:0 0 12px; color:var(--clay);">※ 선수명은 관리자 화면에서만 보입니다. 공개 '성과 기록' 페이지에는 학교·종목·순위·메달·기록만 나옵니다.</p>
+
+          <h4 style="margin:12px 0 6px;">엑셀로 한꺼번에 올리기</h4>
+          <div>
+            <label style="margin-right:16px;"><input type="radio" name="axMode" value="add" checked> 추가 (기존 기록은 그대로)</label>
+            <label><input type="radio" name="axMode" value="replace"> 이 연도·대회 교체 (파일에 나온 연도+대회명의 기존 기록을 지우고 새로 넣기)</label>
+          </div>
+          <div class="dropzone" id="axDropzone" tabindex="0" style="margin-top:8px;">
+            <input type="file" id="axFile" accept=".xlsx" class="dropzone-input">
+            <p class="dropzone-text">성과 기록 파일을 끌어다 놓거나 클릭하여 선택<span class="dropzone-sub">.xlsx</span></p>
+          </div>
+          <p id="axFileName" class="sub" style="margin:6px 0 10px;"></p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline" id="axPreviewBtn">미리보기</button>
+            <button type="button" class="btn btn-primary" id="axSaveBtn" disabled>저장</button>
+          </div>
+          <p id="axStatus" class="form-status"></p>
+          <div id="axPreview"></div>
+
+          <h4 style="margin:24px 0 6px;" id="axFormTitle">한 건 직접 입력</h4>
+          <datalist id="axSchoolList"></datalist><datalist id="axSportList"></datalist>
+          <datalist id="axCompList"><option>전국소년체육대회</option><option>전국체육대회</option><option>충청북도교육감기</option><option>충북도민체육대회</option><option>회장기</option><option>기타</option></datalist>
+          <div class="form-row">
+            <div class="field"><label for="axfYear">연도 *</label><input type="number" id="axfYear" value="2026"></div>
+            <div class="field"><label for="axfComp">대회명 *</label><input type="text" id="axfComp" list="axCompList"></div>
+            <div class="field"><label for="axfLevelC">대회 수준</label><select id="axfLevelC"><option value="">(선택)</option><option>전국</option><option>도</option><option>시군</option></select></div>
+            <div class="field"><label for="axfDate">대회 일자</label><input type="date" id="axfDate"></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label for="axfSport">종목 *</label><input type="text" id="axfSport" list="axSportList"></div>
+            <div class="field"><label for="axfDetail">세부종목(체급)</label><input type="text" id="axfDetail"></div>
+            <div class="field"><label for="axfSchool">학교명 *</label><input type="text" id="axfSchool" list="axSchoolList"></div>
+            <div class="field"><label for="axfLevel">학교급</label><select id="axfLevel"><option value="">(자동)</option><option>초</option><option>중</option><option>고</option></select></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label for="axfGender">성별</label><select id="axfGender"><option value="">(선택)</option><option>남</option><option>여</option><option>혼성</option></select></div>
+            <div class="field"><label for="axfType">구분</label><select id="axfType"><option value="">(선택)</option><option>개인</option><option>단체</option></select></div>
+            <div class="field"><label for="axfPlace">순위</label><input type="number" id="axfPlace" min="1"></div>
+            <div class="field"><label for="axfMedal">메달</label><select id="axfMedal"><option value="">(순위로 자동)</option><option>금</option><option>은</option><option>동</option></select></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label for="axfAthlete">선수명 (관리자 전용, 단체는 쉼표로)</label><input type="text" id="axfAthlete"></div>
+            <div class="field"><label for="axfRecord">기록</label><input type="text" id="axfRecord"></div>
+            <div class="field"><label for="axfNote">비고</label><input type="text" id="axfNote"></div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-primary" id="axfSaveBtn">등록</button>
+            <button type="button" class="btn btn-ghost" id="axfCancelBtn" style="display:none; color:var(--ink); border-color:var(--line);">수정 취소</button>
+          </div>
+          <p id="axfStatus" class="form-status"></p>
+
+          <h4 style="margin:24px 0 6px;">기록 목록</h4>
+          <div class="form-row">
+            <div class="field"><label for="axlYear">연도</label><select id="axlYear"><option value="">전체</option></select></div>
+            <div class="field"><label for="axlComp">대회</label><select id="axlComp"><option value="">전체</option></select></div>
+            <div class="field"><label for="axlSchool">학교</label><select id="axlSchool"><option value="">전체</option></select></div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+            <button type="button" class="btn btn-ghost" id="axlDelSel" style="color:var(--ink); border-color:var(--line);">선택 삭제</button>
+            <span id="axlCount" class="sub"></span>
+          </div>
+          <div style="overflow-x:auto;" id="axlList"></div>
+
+          <h4 style="margin:24px 0 6px;">예상 대비 실적 (관리자 전용)</h4>
+          <p class="sub" style="margin:0 0 8px;">운동부 현황 조사표의 예상 금·은·동과, 같은 연도 전국소년체육대회·전국체육대회 입상 기록의 실제 개수를 비교합니다.</p>
+          <div class="field" style="max-width:200px;"><label for="axeYear">학년도(연도)</label><input type="number" id="axeYear" value="2027"></div>
+          <div id="axeBox" style="overflow-x:auto;"></div>
+        </div>
+
         <div style="margin-bottom:28px;">
           <label class="field-label" id="spFormTitle">새 게시물 등록</label>
           <a id="spSampleLink" href="teams-sample.xlsx" download class="btn btn-outline" style="display:none; margin:0 0 4px;">조사표 샘플 다운로드 (.xlsx)</a>

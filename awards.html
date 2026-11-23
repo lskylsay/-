@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#16233F">
+<meta name="apple-mobile-web-app-title" content="마이스포츠클럽">
+<title>제천 학교운동부 성과 기록 — 마이스포츠클럽</title>
+<meta name="description" content="제천 관내 학교운동부의 대회별 입상 기록(순위·메달)을 연도·대회·종목·학교별로 안내합니다.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="header-left">
+      <a href="index.html" class="brand">마이스포츠클럽<span>.</span></a>
+      <a href="index.html" class="header-home-btn">🏠 처음화면</a>
+    </div>
+    <nav class="site-nav">
+      <a href="index.html">처음화면</a>
+    </nav>
+  </div>
+</header>
+
+<section class="block">
+  <div class="wrap">
+    <span class="bib">제천 학교운동부 성과 기록</span>
+    <h2 style="margin-top:14px;">제천 학교운동부 성과 기록</h2>
+    <p class="sub">전국소년체육대회 등 대회별 입상 기록(순위·메달)을 한곳에서 확인합니다. 학생 이름은 공개하지 않습니다.</p>
+    <nav class="ts-nav" aria-label="학교운동부 메뉴"><a href="teams.html">운동부 현황</a><a href="awards.html" class="active" aria-current="page">성과 기록</a><a href="dashboard.html">현황 대시보드</a></nav>
+    <div id="awardsApp" style="margin-top:20px;"><p class="empty-note">불러오는 중…</p></div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>마이스포츠클럽</span>
+    <span><a href="admin.html" style="color:inherit;">관리자</a></span>
+  </div>
+</footer>
+
+<script src="config.js"></script>
+<script type="module" src="awards.js"></script>
+</body>
+</html>

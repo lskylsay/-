@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#16233F">
+<meta name="apple-mobile-web-app-title" content="마이스포츠클럽">
+<title>제천 학교운동부 현황 대시보드 — 마이스포츠클럽</title>
+<meta name="description" content="제천 관내 학교운동부 수, 선수 수, 메달 성과의 추이를 그래프로 안내합니다.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="header-left">
+      <a href="index.html" class="brand">마이스포츠클럽<span>.</span></a>
+      <a href="index.html" class="header-home-btn">🏠 처음화면</a>
+    </div>
+    <nav class="site-nav">
+      <a href="index.html">처음화면</a>
+    </nav>
+  </div>
+</header>
+
+<section class="block">
+  <div class="wrap">
+    <span class="bib">제천 학교운동부 현황 대시보드</span>
+    <h2 style="margin-top:14px;">제천 학교운동부 현황 대시보드</h2>
+    <p class="sub">운동부·선수 수와 대회 메달 성과를 숫자와 그래프로 한눈에 봅니다.</p>
+    <nav class="ts-nav" aria-label="학교운동부 메뉴"><a href="teams.html">운동부 현황</a><a href="awards.html">성과 기록</a><a href="dashboard.html" class="active" aria-current="page">현황 대시보드</a></nav>
+    <div id="dashApp" style="margin-top:20px;"><p class="empty-note">불러오는 중…</p></div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>마이스포츠클럽</span>
+    <span><a href="admin.html" style="color:inherit;">관리자</a></span>
+  </div>
+</footer>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script type="module" src="dashboard.js"></script>
+</body>
+</html>
