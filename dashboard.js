@@ -2,6 +2,7 @@
 // 개인정보(학생·지도자 이름, 기록, 예상 메달)는 사용하지 않는다.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { diagnose } from "./pathway-diag.js";
+import { enrich, gapReport } from "./squad-lib.js";
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 const root = document.getElementById("dashApp");
@@ -17,7 +18,7 @@ const total = (t) => (t.players_m || 0) + (t.players_f || 0);
 const PENDING = '<p class="empty-note">자료를 준비 중입니다.</p>';
 const charts = [];
 
-let trend = [], teams = [], awards = [], brokenCount = null;
+let trend = [], teams = [], awards = [], brokenCount = null, gapCount = null;
 let chartComp = "";
 let yearSel = "";
 
@@ -38,13 +39,24 @@ async function loadBroken() {
   } catch (e) { /* 연계 정보가 없으면 이 줄은 숨김 */ }
 }
 
+async function loadGaps() {
+  try {   // 공백 주의 팀 수 (선수 구성 RPC가 없거나 오류면 이 줄은 숨김)
+    if (!teams.length) return;
+    const r = await supabase.rpc("get_public_athletes", { p_year: null });
+    if (r.error || !Array.isArray(r.data) || !r.data.length) return;
+    gapCount = gapReport(enrich(r.data, teams)).filter((g) => g.flag).length;
+    render();
+  } catch (e) { /* 선수 구성 자료가 없으면 숨김 */ }
+}
+
 async function init() {
   [trend, teams, awards] = await Promise.all([rpc("get_public_team_trend"), rpc("get_public_teams", { p_year: null }), rpc("get_public_awards", {})]);
   trend.sort((a, b) => a.year - b.year);
   const years = [...new Set(awards.map((r) => r.year))].sort((a, b) => b - a);
   yearSel = years.length ? String(years[0]) : "";
   render();
-  loadBroken();   // 연계 단절 종목 수는 화면을 먼저 그린 뒤 채움 (테이블이 없거나 느려도 대시보드는 그대로)
+  loadBroken();
+  loadGaps();   // 연계 단절 종목 수는 화면을 먼저 그린 뒤 채움 (테이블이 없거나 느려도 대시보드는 그대로)
 }
 
 // 표로 보기(접근성) 보조
@@ -117,7 +129,8 @@ function render() {
     : panel("c5", "학교급별 분포", "단위: 곳, 명", PENDING);
 
   const pwLine = brokenCount == null ? "" : `<p style="margin:10px 0 0;">연계 단절 종목 <b>${brokenCount}개</b> → <a href="pathways.html">연계 경로도 보기</a></p>`;
-  root.innerHTML = `<div class="dash-grid-6">${cards.join("")}</div>${pwLine}${p1}${p2}${p3}${p4}${p5}`;
+  const gapLine = gapCount == null ? "" : `<p style="margin:6px 0 0;">공백 주의 팀 <b>${gapCount}개</b> → <a href="squad.html">선수 구성 분석 보기</a></p>`;
+  root.innerHTML = `<div class="dash-grid-6">${cards.join("")}</div>${pwLine}${gapLine}${p1}${p2}${p3}${p4}${p5}`;
 
   // ---- 그래프 그리기
   const stackOpts = (extra) => ({ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } }, ...extra });

@@ -1848,3 +1848,15 @@ body.modal-open { overflow: hidden; }
   .staff-strip-btns { width: 100%; }
   .staff-strip-btns .btn { flex: 1 1 0; min-height: 44px; }
 }
+
+/* ---------- 선수 구성(모달·squad 페이지) ---------- */
+:root { --sq-male: #3B6FB6; --sq-female: #C1502E; }
+.sq-bar-row { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 8px; margin: 3px 0; font-size: 0.85rem; }
+.sq-bar-track { display: flex; height: 14px; background: #F0F0EA; border-radius: 4px; overflow: hidden; }
+.sq-bar-track i { display: block; height: 100%; }
+i.sq-m { background: var(--sq-male); } i.sq-f { background: var(--sq-female); }
+.sq-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 2px 0 8px; vertical-align: middle; }
+.sq-bar-num { color: var(--ink-soft); white-space: nowrap; }
+.sq-table th, .sq-table td { white-space: nowrap; text-align: left; font-size: 0.85rem; }
+.sq-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #E8D9A8; color: #5A4A10; }
+.sq-badge.risk { background: var(--clay); color: #fff; }
