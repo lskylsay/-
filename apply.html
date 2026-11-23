@@ -178,11 +178,17 @@
           <input type="text" id="bulkCapacity" placeholder="예: 20명">
         </div>
 
+        <label class="checkbox-label" style="margin:12px 0;">
+          <input type="checkbox" id="bulkGuardianConsent">
+          <span><strong>(필수)</strong> 참가 학생(만 14세 미만은 보호자 포함)의 개인정보 수집·이용, 국외 보관 및 결과 공개(성명 일부 가림) 동의서를 받아 학교에 보관하고 있습니다.</span>
+        </label>
+
         <div class="bulk-note-box">
           <p>참가자 개인정보 관련 안내</p>
           <ul>
             <li>참가자 개인정보 수집·이용 동의서는 <strong>학교에서 자체 보관</strong>합니다 (본 사이트에 별도 제출하지 않습니다).</li>
-            <li>업로드하신 명단 파일은 대회 운영 목적으로만 사용되며, 대회 종료일로부터 1개월 후 파기됩니다.</li>
+            <li>업로드하신 명단 파일은 대회 운영 목적으로만 사용되며, <span class="ph">[보유기간: 예) 대회 종료 후 1년]</span> 후 파기됩니다.</li>
+            <li>명단 파일에는 학생 성명 등이 들어 있으며, 일본(Supabase)에 보관되고 공개 화면에는 성명 일부를 가려 표시합니다. 자세한 내용은 <a href="privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a> 참고.</li>
           </ul>
         </div>
       </div>
@@ -195,17 +201,21 @@
           <dt>수집 목적</dt>
           <dd id="privacyPurposeText">학교스포츠클럽 대회 참가 신청 접수 및 대회 운영</dd>
           <dt>수집 항목</dt>
-          <dd>학교명, 학년/구분, 대표자(또는 담당교사) 성명, 연락처, 참가자 명단(학년·반·성명·성별 등), 비고, 접속 IP주소</dd>
+          <dd>학교명, 학년·반, 성명, 성별, 참가 종목, 기록(결과), 신청 담당자 성명·연락처 (배번은 운영 과정에서 부여)</dd>
           <dt>보유·이용 기간</dt>
-          <dd>대회 종료일로부터 1개월간 보관 후 파기</dd>
+          <dd><span class="ph">[보유기간: 예) 대회 종료 후 1년]</span> 보관 후 파기</dd>
+          <dt>공개 범위</dt>
+          <dd>대회 결과는 성명의 가운데 글자를 O로 가려(예: 홍길동→홍O동) 학년·학교·배번·기록만 공개하며, 반은 공개하지 않습니다.</dd>
+          <dt>국외 이전</dt>
+          <dd>Supabase(일본 도쿄, 데이터베이스·파일 보관), Vercel(미국, 누리집 호스팅). 자세한 내용은 <a href="privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a>을 확인해 주세요.</dd>
         </dl>
         <p class="privacy-note">
-          귀하는 개인정보 수집·이용에 동의하지 않을 권리가 있습니다.
-          다만 동의하지 않으실 경우 대회 참가 신청 접수가 제한됩니다.
+          귀하는 개인정보 수집·이용 및 국외 이전에 동의하지 않을 권리가 있습니다.
+          다만 동의하지 않으실 경우 대회 참가 신청 접수(온라인 신청)가 제한됩니다.
         </p>
         <label class="checkbox-label">
           <input type="checkbox" id="privacyConsent" name="privacyConsent" required>
-          위 개인정보 수집 및 이용에 동의합니다.
+          위 개인정보 수집·이용, 국외 보관 및 결과 공개(성명 일부 가림)에 동의합니다.
         </label>
       </div>
 
@@ -219,6 +229,7 @@
   <div class="wrap">
     <span>마이스포츠클럽 · 2026 제천 학교스포츠클럽 대회</span>
     <span><a href="admin.html" style="color:inherit;">관리자</a></span>
+    <span><a href="privacy.html" class="footer-privacy" style="color:inherit; font-weight:700;">개인정보 처리방침</a></span>
   </div>
 </footer>
 

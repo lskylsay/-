@@ -202,23 +202,28 @@ const form = document.getElementById("applyForm");
 const statusEl = document.getElementById("formStatus");
 const submitBtn = document.getElementById("submitBtn");
 
-async function getClientIp() {
-  try {
-    const res = await fetch("https://api.ipify.org?format=json");
-    const data = await res.json();
-    return data.ip || null;
-  } catch {
-    return null;
-  }
-}
-
 const privacyConsentInput = document.getElementById("privacyConsent");
+const bulkGuardianConsent = document.getElementById("bulkGuardianConsent");
+// 교사 일괄 신청: 학생(보호자) 동의서 보관 확인을 체크하기 전에는 제출할 수 없음
+function updateSubmitState() {
+  submitBtn.disabled = currentMode === "bulk" && !bulkGuardianConsent.checked;
+}
+bulkGuardianConsent.addEventListener("change", updateSubmitState);
+modeIndividualBtn.addEventListener("click", updateSubmitState);
+modeBulkBtn.addEventListener("click", updateSubmitState);
+updateSubmitState();
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   if (!privacyConsentInput.checked) {
     statusEl.textContent = "개인정보 수집·이용에 동의해야 제출할 수 있습니다.";
+    statusEl.className = "form-status error";
+    return;
+  }
+
+  if (currentMode === "bulk" && !bulkGuardianConsent.checked) {
+    statusEl.textContent = "학생(보호자) 동의서를 받아 학교에 보관하고 있음을 체크해 주세요.";
     statusEl.className = "form-status error";
     return;
   }
@@ -234,7 +239,6 @@ form.addEventListener("submit", async (e) => {
   statusEl.textContent = "";
   statusEl.className = "form-status";
 
-  const ip = await getClientIp();
   const privacyConsent = privacyConsentInput.checked;
   let error;
 
@@ -264,7 +268,6 @@ form.addEventListener("submit", async (e) => {
       requested_count: document.getElementById("bulkCapacity").value || null,
       file_path: filePath,
       file_name: file.name,
-      ip_address: ip,
       privacy_consent: privacyConsent,
     };
     ({ error } = await supabase.from("bulk_applications").insert([payload]));
@@ -280,7 +283,6 @@ form.addEventListener("submit", async (e) => {
       contact: data.get("contact"),
       members: data.get("members") || null,
       note: data.get("note") || null,
-      ip_address: ip,
       privacy_consent: privacyConsent,
     };
     ({ error } = await supabase.from("applications").insert([payload]));
@@ -306,6 +308,6 @@ form.addEventListener("submit", async (e) => {
     preferredDatesField.style.display = "none";
   }
 
-  submitBtn.disabled = false;
   submitBtn.textContent = "신청서 제출";
+  updateSubmitState();
 });
