@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#16233F">
+<meta name="apple-mobile-web-app-title" content="마이스포츠클럽">
+<title>제천 학교운동부 선수 구성 분석 — 마이스포츠클럽</title>
+<meta name="description" content="제천 관내 학교운동부 선수의 학년·성별 구성과 졸업 예정 인원, 지도자 구성을 이름 없이 분석해 안내합니다.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="header-left">
+      <a href="index.html" class="brand">마이스포츠클럽<span>.</span></a>
+      <a href="index.html" class="header-home-btn">🏠 처음화면</a>
+    </div>
+    <nav class="site-nav">
+      <a href="index.html">처음화면</a>
+    </nav>
+  </div>
+</header>
+
+<section class="block">
+  <div class="wrap">
+    <span class="bib">선수 구성 분석</span>
+    <h2 style="margin-top:14px;">제천 학교운동부 선수 구성 분석</h2>
+    <p class="sub">학년·성별 구성, 졸업 예정 인원, 지도자 구성을 보여 줍니다. 성명은 일부 가려 표시하며 기록·지원 내용은 공개하지 않습니다.</p>
+    <nav class="ts-nav" aria-label="학교운동부 메뉴"><a href="teams.html">운동부 현황</a><a href="awards.html">성과 기록</a><a href="dashboard.html">현황 대시보드</a><a href="pathways.html">연계 경로도</a><a href="map.html">학교 지도</a><a href="squad.html" class="active" aria-current="page">선수 구성</a></nav>
+    <div id="squadApp" style="margin-top:20px;"><p class="empty-note">불러오는 중…</p></div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>마이스포츠클럽</span>
+    <span><a href="admin.html" style="color:inherit;">관리자</a></span>
+    <span><a href="privacy.html" class="footer-privacy" style="color:inherit; font-weight:700;">개인정보 처리방침</a></span>
+  </div>
+</footer>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script type="module" src="squad.js"></script>
+</body>
+</html>

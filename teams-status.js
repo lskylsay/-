@@ -1,6 +1,7 @@
 // 학교운동부 운영 현황 (공개) — RPC get_public_teams / get_public_team_years 만 사용.
 // 학생·지도자 이름, 기록, 예상 메달은 RPC가 주지 않으며 이 화면에서도 다루지 않는다.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { enrich, ORDER_LABELS } from "./squad-lib.js";
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 const root = document.getElementById("teamsStatus");
@@ -14,6 +15,16 @@ let years = [];
 let year = null;
 let fLevel = "";
 let fSport = "";
+const rosterCache = new Map();   // 학년도 → Promise<{ athletes: 배열|null, staff: 배열|null }> (RPC 오류면 null → 모달에서 '준비 중')
+
+function loadRoster(y) {
+  const key = String(y);
+  if (!rosterCache.has(key)) {
+    const get = async (fn) => { try { const r = await supabase.rpc(fn, { p_year: y ?? null }); return r.error || !Array.isArray(r.data) ? null : r.data; } catch (e) { return null; } };
+    rosterCache.set(key, Promise.all([get("get_public_athletes"), get("get_public_staff")]).then(([athletes, staff]) => ({ athletes, staff })));
+  }
+  return rosterCache.get(key);
+}
 
 function notReady() {
   root.innerHTML = '<p class="empty-note">현황 자료를 준비 중입니다.</p>';
@@ -34,6 +45,7 @@ async function init() {
     if (!data) return notReady();
     rows = data;
     year = Number(rows[0].year);
+    loadRoster(year);
     render();
   } catch (e) { notReady(); }
 }
@@ -42,6 +54,7 @@ async function changeYear(y) {
   const data = await load(y);
   if (!data) return;
   rows = data; year = y; fLevel = ""; fSport = "";
+  loadRoster(y);
   render();
 }
 
@@ -91,29 +104,60 @@ function render() {
   root.querySelectorAll("[data-school]").forEach((b) => b.addEventListener("click", () => openCard(b.dataset.school)));
 }
 
-function openCard(school) {
+const SOFT_NOTE = "개인정보 보호를 위해 성명은 일부 가려 표시하며, 기록·지원 내용은 공개하지 않습니다.";
+
+// 한 운동부의 '선수 구성'(학년별 남·여 막대 + 선수 목록)과 지도자 줄
+function squadHtml(t, roster) {
+  if (!roster || !roster.athletes) return '<p class="sub" style="margin:8px 0 0;">선수 구성: 자료를 준비 중입니다.</p>';
+  const list = enrich(roster.athletes.filter((a) => a.school === t.school && a.sport === t.sport), rows)
+    .sort((a, b) => (a.ord ?? 99) - (b.ord ?? 99) || String(a.name).localeCompare(String(b.name), "ko"));
+  if (!list.length) return '<p class="sub" style="margin:8px 0 0;">선수 구성: 등록된 명단이 없습니다.</p>';
+  const groups = [];
+  list.forEach((a) => { let g = groups.find((x) => x.label === a.gradeLabel); if (!g) { g = { label: a.gradeLabel, ord: a.ord ?? 99, m: 0, f: 0 }; groups.push(g); } if (a.gender === "남") g.m++; else if (a.gender === "여") g.f++; });
+  groups.sort((a, b) => a.ord - b.ord);
+  const max = Math.max(...groups.map((g) => g.m + g.f), 1);
+  const bars = groups.map((g) => `<div class="sq-bar-row"><span class="sq-bar-label">${esc(g.label)}</span>
+    <span class="sq-bar-track"><i class="sq-m" style="width:${(g.m / max) * 100}%"></i><i class="sq-f" style="width:${(g.f / max) * 100}%"></i></span>
+    <span class="sq-bar-num">남 ${g.m} · 여 ${g.f}</span></div>`).join("");
+  return `<p style="margin:10px 0 4px;"><b>선수 구성</b> <span class="sub"><i class="sq-dot sq-m"></i>남 <i class="sq-dot sq-f"></i>여</span></p>${bars}
+    <div class="ts-scroll" style="margin-top:8px;"><table class="result-table sq-table"><thead><tr><th>이름</th><th>성별</th><th>학년</th><th>세부종목·포지션</th></tr></thead><tbody>
+    ${list.map((a) => `<tr><td>${esc(a.name)}</td><td>${esc(a.gender)}</td><td>${esc(a.gradeLabel)}</td><td>${esc(a.detail || "")}</td></tr>`).join("")}</tbody></table></div>`;
+}
+function staffHtml(t, roster) {
+  if (!roster || !roster.staff) return "";
+  const rank = { 감독: 0, 코치: 1 };
+  const list = roster.staff.filter((x) => x.school === t.school && x.sport === t.sport).sort((a, b) => (rank[a.role] ?? 9) - (rank[b.role] ?? 9) || String(a.name).localeCompare(String(b.name), "ko"));
+  if (!list.length) return "";
+  return `<p style="margin:8px 0 0;"><b>지도자</b> ${list.map((x) => `${esc(x.role || "")} ${esc(x.name)}${x.status ? `(${esc(x.status)})` : ""}`).join(" · ")}</p>`;
+}
+
+async function openCard(school) {
   const list = rows.filter((r) => r.school === school).sort((a, b) => ko(a.sport, b.sport));
   const modal = document.createElement("div");
   modal.className = "pdf-modal";
-  modal.innerHTML = `
-    <div class="pdf-modal-box" role="dialog" aria-modal="true" style="height:auto; max-height:100%; max-width:640px;">
-      <div class="pdf-modal-head"><strong class="pdf-modal-title">${esc(school)} 운동부</strong>
-        <div class="pdf-modal-actions"><button type="button" class="pdf-modal-close" aria-label="닫기">✕</button></div></div>
-      <div style="padding:16px 20px; overflow:auto;">
-        ${list.map((t) => `<div class="ts-card" style="margin-bottom:12px;">
+  const card = (t, roster) => `<div class="ts-card" style="margin-bottom:12px;">
           <strong>${esc(t.sport)}</strong> <span class="sub">${esc(t.kind || "")}</span>
           <p style="margin:4px 0;">${esc(t.team_name || "")}${t.founded ? ` · ${t.founded}년 창단 (창단 ${Math.max(1, year - t.founded + 1)}년째)` : ""}</p>
           <p style="margin:4px 0;">선수 ${total(t)}명 (남 ${t.players_m || 0} · 여 ${t.players_f || 0})</p>
           <p style="margin:4px 0;">감독 ${t.directors || 0}명 · 코치 ${t.coaches || 0}명</p>
           ${t.training_place ? `<p style="margin:4px 0;">훈련 장소: ${esc(t.training_place)}</p>` : ""}
-        </div>`).join("")}
-      </div>
+          ${roster === undefined ? '<p class="sub" style="margin:8px 0 0;">선수 구성을 불러오는 중…</p>' : staffHtml(t, roster) + squadHtml(t, roster)}
+        </div>`;
+  const body = (roster) => `${list.map((t) => card(t, roster)).join("")}<p class="sub" style="margin:4px 0 0;">${SOFT_NOTE}</p>`;
+  modal.innerHTML = `
+    <div class="pdf-modal-box" role="dialog" aria-modal="true" style="height:auto; max-height:100%; max-width:640px;">
+      <div class="pdf-modal-head"><strong class="pdf-modal-title">${esc(school)} 운동부</strong>
+        <div class="pdf-modal-actions"><button type="button" class="pdf-modal-close" aria-label="닫기">✕</button></div></div>
+      <div class="ts-modal-body" style="padding:16px 20px; overflow:auto;">${body(undefined)}</div>
     </div>`;
   const close = () => { modal.remove(); document.removeEventListener("keydown", onKey); };
   const onKey = (e) => { if (e.key === "Escape") close(); };
   document.addEventListener("keydown", onKey);
   modal.addEventListener("click", (e) => { if (e.target === modal || e.target.closest(".pdf-modal-close")) close(); });
   document.body.appendChild(modal);
+  const roster = await loadRoster(year);
+  const box = modal.querySelector(".ts-modal-body");
+  if (box) box.innerHTML = body(roster);
 }
 
 init();
