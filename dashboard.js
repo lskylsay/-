@@ -1,6 +1,7 @@
 // 현황 대시보드 (공개) — RPC get_public_team_trend / get_public_teams / get_public_awards 만 사용.
 // 개인정보(학생·지도자 이름, 기록, 예상 메달)는 사용하지 않는다.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { diagnose } from "./pathway-diag.js";
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 const root = document.getElementById("dashApp");
@@ -16,7 +17,7 @@ const total = (t) => (t.players_m || 0) + (t.players_f || 0);
 const PENDING = '<p class="empty-note">자료를 준비 중입니다.</p>';
 const charts = [];
 
-let trend = [], teams = [], awards = [];
+let trend = [], teams = [], awards = [], brokenCount = null;
 let chartComp = "";
 let yearSel = "";
 
@@ -30,6 +31,10 @@ async function rpc(name, args) {
 async function init() {
   [trend, teams, awards] = await Promise.all([rpc("get_public_team_trend"), rpc("get_public_teams", { p_year: null }), rpc("get_public_awards", {})]);
   trend.sort((a, b) => a.year - b.year);
+  try {   // 연계 단절 종목 수 (연계 정보 테이블이 없으면 이 줄은 숨김)
+    const pw = await supabase.from("sport_pathways").select("*");
+    if (!pw.error && teams.length) brokenCount = diagnose(teams, pw.data || []).filter((d) => d.broken.length).length;
+  } catch (e) { brokenCount = null; }
   const years = [...new Set(awards.map((r) => r.year))].sort((a, b) => b - a);
   yearSel = years.length ? String(years[0]) : "";
   render();
@@ -104,7 +109,8 @@ function render() {
   const p5 = hasTeams ? panel("c5", "학교급별 분포", `단위: 운동부 수는 곳, 선수 수는 명 (${tYear}학년도)`, canvasBox("c5cv", "학교급별 운동부 수와 선수 수 막대 그래프") + tableHtml(["학교급", "운동부", "선수"], lv.map((x) => [x.l, x.t, x.p])))
     : panel("c5", "학교급별 분포", "단위: 곳, 명", PENDING);
 
-  root.innerHTML = `<div class="dash-grid-6">${cards.join("")}</div>${p1}${p2}${p3}${p4}${p5}`;
+  const pwLine = brokenCount == null ? "" : `<p style="margin:10px 0 0;">연계 단절 종목 <b>${brokenCount}개</b> → <a href="pathways.html">연계 경로도 보기</a></p>`;
+  root.innerHTML = `<div class="dash-grid-6">${cards.join("")}</div>${pwLine}${p1}${p2}${p3}${p4}${p5}`;
 
   // ---- 그래프 그리기
   const stackOpts = (extra) => ({ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } }, ...extra });

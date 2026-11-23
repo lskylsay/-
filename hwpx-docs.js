@@ -9,6 +9,7 @@
        세부운영계획   buildDetail   templates/detail-template.hwpx  jecheon-detailed-operation-plan
        결과보고       buildOnepage  templates/onepage-template.hwpx jecheon-onepage-report
        대회 결과표    buildResults  templates/results-template.hwpx (admin.html 대회결과관리에서 내려받기)
+       운동부 현황 보고서 buildTeamReport templates/team-report-template.hwpx (admin.html 선택3 '현황 보고서 만들기')
    - 화면 미리보기(previewHtml)와 hwpx 는 같은 내용 모델(planModel 등)에서 만들어
      두 결과가 항상 같게 유지
    ===================================================================== */
@@ -20,7 +21,8 @@
     plan: 'templates/plan-template.hwpx',
     detail: 'templates/detail-template.hwpx',
     result: 'templates/onepage-template.hwpx',
-    results: 'templates/results-template.hwpx'
+    results: 'templates/results-template.hwpx',
+    teamReport: 'templates/team-report-template.hwpx'
   };
   const WD = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -327,14 +329,14 @@
     const out = new root.JSZip();
     const names = Object.keys(zip.files).filter(n => !zip.files[n].dir);
     // mimetype 은 맨 앞·무압축(STORE), 나머지는 원래 순서대로
-    out.file('mimetype', await zip.file('mimetype').async('uint8array'), { compression: 'STORE' });
+    out.file('mimetype', await zip.file('mimetype').async('uint8array'), { compression: 'STORE', createFolders: false });
     for (const n of names) {
       if (n === 'mimetype') continue;
       let data;
       if (n === 'Contents/section0.xml') data = xml;
       else if (n === 'Preview/PrvText.txt') data = prvText.replace(/\r?\n/g, '\r\n');
       else data = await zip.file(n).async('uint8array');
-      out.file(n, data, { compression: 'DEFLATE' });
+      out.file(n, data, { compression: 'DEFLATE', createFolders: false });
     }
     return out.generateAsync({ type: type || 'blob', mimeType: 'application/hwp+zip', compression: 'DEFLATE' });
   }
@@ -581,6 +583,145 @@
     return { blob: await pack(zip, doc, prv, opts && opts.type), model: m };
   }
 
+
+  /* ============ 학교운동부 현황 보고서 (admin.html 선택3 → 한글 내려받기) ============
+     서식 파일 약속(templates/team-report-template.hwpx): 본문 문단 [0]=구역 설정, [1]=머리 제목표(○○○),
+     그 뒤 견본 문단 '2026. ○. ○.(○)  체육교육팀' · '1. ○○○' · '가. 내용' · '- 내용' · '※ 내용', 마지막이 5열 표(머리행 + 견본행)
+     d: { year, awardYear, teams[sport_teams], prev:{teams,schools,players}|null, awards[sport_awards 일부 칸],
+          diag[pathway-diag 결과], insights[] (직접 고친 시사점; 없으면 자동 초안), today }
+     학생·지도자 이름은 쓰지 않음(수치만). */
+  const BIG_COMPS = ['전국소년체육대회', '전국체육대회'];
+  const LV = ['초', '중', '고'];
+  const sum = (a, f) => a.reduce((s, x) => s + (Number(f(x)) || 0), 0);
+  const sgn = n => (n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '±0');
+  const tot = t => (Number(t.players_m) || 0) + (Number(t.players_f) || 0);
+
+  function draftInsights(m) {
+    const out = [];
+    out.push(`운동부 ${m.n.teams}개·학생선수 ${m.n.players}명 규모로 초 ${m.lv[0].teams}·중 ${m.lv[1].teams}·고 ${m.lv[2].teams}개 운영 중 ⇨ 종목별 균형 육성 필요`);
+    if (m.broken.length) out.push(`연계 단절 종목(${m.broken.map(b => b.sport).join(', ')}) 중심으로 진학 연계 방안 마련 필요`);
+    else if (m.linkedCount) out.push(`초·중·고 연계 종목 ${m.linkedCount}개 ⇨ 연계 체계 유지·강화 추진`);
+    if (m.unreg.teams) out.push(`연계 미등록 운동부 ${m.unreg.teams}개(${m.unreg.schools}교) ⇨ 진학 연계 정보 등록 추진`);
+    if (m.awards.total) out.push(m.expect && m.expect.diffTotal < 0 ? '예상 대비 실적이 낮은 종목은 원인 분석 및 맞춤 지원 검토' : `${m.awardYear}년 전국대회 메달 ${m.awards.total}개 ⇨ 우수 종목 사례 공유 및 지원 확대 검토`);
+    return out.slice(0, 4);
+  }
+
+  function teamReportModel(d) {
+    const t = todayParts(d.today || new Date());
+    const teams = d.teams || [];
+    const sports = [...new Set(teams.map(x => x.sport))].sort((a, b) => a.localeCompare(b, 'ko'));
+    const pm = sum(teams, x => x.players_m), pf = sum(teams, x => x.players_f);
+    const n = { teams: teams.length, schools: new Set(teams.map(x => x.school)).size, sports: sports.length, players: pm + pf, pm, pf };
+    const lv = LV.map(l => { const r = teams.filter(x => x.level === l); return { l, teams: r.length, schools: new Set(r.map(x => x.school)).size, m: sum(r, x => x.players_m), f: sum(r, x => x.players_f) }; });
+    const bySport = sports.map(s => { const r = teams.filter(x => x.sport === s); return { s, teams: r.length, c: LV.map(l => r.filter(x => x.level === l).length), m: sum(r, x => x.players_m), f: sum(r, x => x.players_f) }; });
+    const prev = d.prev || null;
+    const diff = prev ? { teams: n.teams - prev.teams, schools: n.schools - prev.schools, players: n.players - prev.players } : null;
+    // 성과
+    const big = (d.awards || []).filter(a => BIG_COMPS.includes(a.competition));
+    const cnt = (rows, m) => rows.filter(a => a.medal === m).length;
+    const aSports = [...new Set(big.filter(a => a.medal).map(a => a.sport))].sort((a, b) => a.localeCompare(b, 'ko'));
+    const aRows = aSports.map(s => { const r = big.filter(a => a.sport === s); return [s, cnt(r, '금'), cnt(r, '은'), cnt(r, '동')]; }).map(r => [...r, r[1] + r[2] + r[3]]);
+    const awards = { g: cnt(big, '금'), s: cnt(big, '은'), b: cnt(big, '동'), rows: aRows };
+    awards.total = awards.g + awards.s + awards.b;
+    const E = [sum(teams, x => x.exp_gold), sum(teams, x => x.exp_silver), sum(teams, x => x.exp_bronze)];
+    const hasExp = teams.some(x => x.exp_gold != null || x.exp_silver != null || x.exp_bronze != null);
+    const A = [awards.g, awards.s, awards.b];
+    const expect = hasExp ? { E, A, diff: A.map((a, i) => a - E[i]), diffTotal: awards.total - E.reduce((a, b) => a + b, 0) } : null;
+    // 연계
+    const diag = d.diag || [];
+    const broken = diag.filter(x => x.broken.length).map(x => ({ sport: x.sport, why: x.broken.join('·') }));
+    const unregTeams = diag.reduce((a, x) => a + x.unregistered.length, 0);
+    const unregSchools = new Set(diag.reduce((a, x) => a.concat(x.unregistered), [])).size;
+    const m = { title: '제천 관내 학교운동부 운영 현황', header: `제천 관내 학교운동부 운영 현황(${d.year}학년도)`, year: d.year, awardYear: d.awardYear,
+      dateLine: `${t.y}. ${t.m}. ${t.d}.(${t.w})  체육교육팀`, fileDate: `${t.y}${String(t.m).padStart(2, '0')}${String(t.d).padStart(2, '0')}`,
+      n, lv, bySport, prev, diff, awards, expect, broken, linkedCount: diag.filter(x => x.linked).length, unreg: { teams: unregTeams, schools: unregSchools }, hasDiag: diag.length > 0 };
+    m.insights = (d.insights && d.insights.length) ? d.insights : draftInsights(m);
+    // 문단 목록 (미리보기와 hwpx 가 같이 씀)
+    const L = [];
+    const h1 = x => L.push({ k: 'h1', t: x }), h2 = x => L.push({ k: 'h2', t: x }), dash = x => L.push({ k: 'dash', t: x }), note = x => L.push({ k: 'note', t: x }), blank = () => L.push({ k: 'blank', t: '' });
+    h1('1. 운영 현황');
+    h2(`가. 학교급별 현황 (${d.year}학년도)`);
+    dash(`운동부 ${n.teams}개, 운영 학교 ${n.schools}교, 종목 ${n.sports}개, 학생선수 ${n.players}명(남 ${pm}·여 ${pf})`);
+    if (diff) dash(`전 학년도 대비 운동부 ${sgn(diff.teams)}개, 학교 ${sgn(diff.schools)}교, 학생선수 ${sgn(diff.players)}명`);
+    L.push({ k: 'table', head: ['학교급', '운동부', '학교', '남', '여'], rows: [...lv.map(x => [x.l === '초' ? '초등학교' : x.l === '중' ? '중학교' : '고등학교', x.teams, x.schools, x.m, x.f]), ['합계', n.teams, n.schools, pm, pf]] });
+    h2('나. 종목별 현황');
+    L.push({ k: 'table', head: ['종목', '운동부', '초·중·고 팀 수', '남', '여'], rows: bySport.map(x => [x.s, x.teams, x.c.join('·'), x.m, x.f]) });
+    blank();
+    h1(`2. 주요 성과 (${d.awardYear}년)`);
+    if (awards.total || big.length) {
+      h2('가. 전국대회 입상 현황');
+      dash(`전국소년체육대회·전국체육대회 금 ${awards.g}·은 ${awards.s}·동 ${awards.b}(계 ${awards.total}개)`);
+      if (aRows.length) L.push({ k: 'table', head: ['종목', '금', '은', '동', '계'], rows: aRows });
+      if (expect) note(`※ 예상 대비 실적: 예상 금 ${E[0]}·은 ${E[1]}·동 ${E[2]} → 실적 금 ${A[0]}·은 ${A[1]}·동 ${A[2]} (차이 금 ${sgn(expect.diff[0])}·은 ${sgn(expect.diff[1])}·동 ${sgn(expect.diff[2])})`);
+    } else dash(`${d.awardYear}년 전국소년체육대회·전국체육대회 입상 기록 없음(자료 확인 필요)`);
+    blank();
+    h1('3. 연계 육성 현황');
+    if (m.hasDiag) {
+      dash(broken.length ? `연계 단절 종목 ${broken.length}개: ${broken.map(b => `${b.sport}(${b.why})`).join(', ')}` : '연계 단절 종목 없음');
+      dash(`연계 미등록 운동부 ${m.unreg.teams}개(학교 ${m.unreg.schools}교)`);
+      if (m.linkedCount) dash(`초·중·고 연계 종목 ${m.linkedCount}개`);
+    } else dash('연계 경로 자료 없음(확인 필요)');
+    blank();
+    h1('4. 시사점 및 향후 계획');
+    m.insights.forEach(x => dash(x));
+    m.lines = L;
+    // 분량 어림 (A4 1쪽 ≈ 38줄)
+    m.estLines = L.reduce((s, x) => s + (x.k === 'table' ? x.rows.length + 2 : x.k === 'h1' ? 1.6 : x.k === 'blank' ? 1 : estLines(x.t, 38)), 3);
+    return m;
+  }
+  const PREFIX = { h2: '  ', dash: '    - ', note: '  ' };
+
+  function teamReportPreview(m, esc) {
+    const body = m.lines.map(x => {
+      if (x.k === 'table') return `<table class="result-table" style="margin:6px 0 10px;"><thead><tr>${x.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${x.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      if (x.k === 'blank') return '<div style="height:8px"></div>';
+      if (x.k === 'h1') return `<p style="margin:6px 0 2px; font-weight:700; font-size:1.05rem;">${esc(x.t)}</p>`;
+      const ind = x.k === 'h2' ? 14 : x.k === 'dash' ? 30 : 14;
+      return `<p style="margin:2px 0 2px ${ind}px;">${x.k === 'dash' ? '- ' : ''}${esc(x.t)}</p>`;
+    }).join('');
+    return `<div style="border:1px solid var(--line); border-radius:8px; padding:16px 20px; background:#fff;"><p style="margin:0; text-align:center; font-weight:700; font-size:1.2rem;">${esc(m.header)}</p><p style="margin:4px 0 10px; text-align:right;" class="sub">${esc(m.dateLine)}</p>${body}</div>
+      <p class="sub" style="margin:6px 0 0;">예상 분량 약 ${(m.estLines / 38).toFixed(1)}쪽${m.estLines > 76 ? ' — 2쪽을 넘을 수 있어 종목·시사점을 줄이면 좋습니다' : ''}</p>`;
+  }
+
+  async function buildTeamReport(model, opts) {
+    const m = model;
+    const { zip, doc } = await loadTemplate('teamReport', opts);
+    const ctx = makeCtx(doc);
+    const ps = paras(doc);
+    const titleP = ps.find(p => kids(p, 'run').some(r => kids(r, 'tbl').length) && /^\s*○○○\s*$/.test(textOf(p)));
+    const dateP = ps.find(p => /^\s*2026\.\s*○\.\s*○\./.test(textOf(p)) && !desc(p, 'tbl').length);
+    const h1P = ps.find(p => /^\s*1\.\s*○○○\s*$/.test(textOf(p)));
+    const h2P = ps.find(p => /^\s*가\.\s*내용\s*$/.test(textOf(p)));
+    const dashP = ps.find(p => /^\s*-\s*내용\s*$/.test(textOf(p)));
+    const noteP = ps.find(p => /^\s*※\s*내용\s*$/.test(textOf(p)));
+    const tableP = ps.find(p => desc(p, 'tbl').length && p !== titleP);
+    if (![titleP, dateP, h1P, h2P, dashP, noteP, tableP].every(Boolean)) throw new Error('현황 보고서 서식의 문단 구성이 예상과 다릅니다');
+    const cp = desc(titleP, 'p').find(p => /○○○/.test(textOf(p)) && !desc(p, 'p').length);
+    setParaText(cp, m.header); dropLsa(titleP); desc(titleP, 'p').forEach(dropLsa);
+    const protos = { h1: h1P.cloneNode(true), h2: h2P.cloneNode(true), dash: dashP.cloneNode(true), note: noteP.cloneNode(true), blank: dashP.cloneNode(true) };
+    const tProto = tableP.cloneNode(true);
+    setParaText(dateP, m.dateLine);
+    [h1P, h2P, dashP, noteP, tableP].forEach(remove);
+    let ref = dateP;
+    const put = n => { insertAfter(ref, n); ref = n; return n; };
+    m.lines.forEach(x => {
+      if (x.k === 'table') {
+        const tp = renewIds(ctx, tProto.cloneNode(true));
+        const tbl = desc(tp, 'tbl')[0];
+        tbl.setAttribute('id', ctx.newId());
+        kids(kids(tbl, 'tr')[0], 'tc').forEach((tc, i) => setLines(ctx, cellSub(tc), [String(x.head[i] == null ? '' : x.head[i])]));
+        fillTable(ctx, tbl, 1, x.rows, 0, (r, i) => [String(r[i] == null ? '' : r[i])]);
+        dropLsa(tp); put(tp);
+        return;
+      }
+      const prefix = x.k === 'h1' || x.k === 'blank' ? '' : PREFIX[x.k];
+      put(setParaText(renewIds(ctx, protos[x.k].cloneNode(true)), x.k === 'blank' ? '' : prefix + x.t.replace(/^\s+/, '')));
+    });
+    const prv = [m.header, m.dateLine, ...m.lines.map(x => x.k === 'table' ? [x.head.join(' '), ...x.rows.map(r => r.join(' '))].join('\n') : (PREFIX[x.k] || '') + x.t)].join('\n');
+    return { blob: await pack(zip, doc, prv, opts && opts.type), model: m };
+  }
+  const teamReportFileName = m => safeName(`제천 관내 학교운동부 운영 현황_${m.year}학년도_${m.fileDate}`) + '.hwpx';
+
   const BUILDERS = { plan: buildPlan, detail: buildDetail, result: buildOnepage };
   const tplCache = {};
   async function hasTemplate(type, opts) {
@@ -676,7 +817,7 @@
       found: { name: !!name, event_date: !!event_date, place: !!place, target: !!target, budget: budget.length } };
   }
 
-  const api = { TEMPLATES, DOC_LABEL, buildPlan, buildDetail, buildOnepage, buildResults, resultsModel, build: (type, f, data, opts) => BUILDERS[type](f, data, opts),
+  const api = { TEMPLATES, DOC_LABEL, buildPlan, buildDetail, buildOnepage, buildResults, resultsModel, buildTeamReport, teamReportModel, teamReportPreview, teamReportFileName, build: (type, f, data, opts) => BUILDERS[type](f, data, opts),
     hasTemplate, parsePlan, previewHtml, planModel, detailModel, onepageModel, schoolStatus, scheduleRows, timeRange, estimateLines, fileName };
   root.HwpxDocs = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
