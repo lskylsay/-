@@ -6,6 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { initDropzone } from "./dropzone.js";
 import { safeStorageKey } from "./storage-key.js";
+import { diagnose, levelOrder, LEVEL_NAME } from "./pathway-diag.js";
 
 const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
@@ -1389,7 +1390,8 @@ function setSpMode(mode) {
   document.getElementById("spSampleLink").style.display = "none";   // 샘플 다운로드는 조사표 영역으로 이동
   document.getElementById("teamsSurveySection").style.display = mode === "teams" ? "" : "none";
   document.getElementById("awardsSection").style.display = mode === "teams" ? "" : "none";
-  if (mode === "teams") { tsLoadList(); axLoadAll(); }
+  document.getElementById("teamsGeoSection").style.display = mode === "teams" ? "" : "none";
+  if (mode === "teams") { tsLoadList(); axLoadAll(); geoInit(); }
   document.getElementById("spSampleNote").style.display = mode === "teams" ? "" : "none";   // 학교운동부 운영 현황은 종목별 탭으로 나뉨
   if (schoolpeLoaded) { renderSpFilters(); renderSpList(); }
 }
@@ -2113,5 +2115,182 @@ async function axRenderExpect() {
     ${rows.map((r) => `<tr><td>${tsEsc(r.school)}</td><td>${tsEsc(r.sport)}</td>${cells(r.e, r.a)}</tr>`).join("")}
     </tbody></table>`;
 }
+
+// ================= 학교 위치 · 진학 연계 · 현황 보고서 (선택3) =================
+// sport_schools(name PK, level, address, lat, lng, updated_at) / sport_pathways(id, sport, from_school, to_school, note) — 모든 저장·삭제는 .select()로 건수 확인
+const geoStatus = document.getElementById("geoStatus");
+let geoSchools = [], geoMap = null, geoMarker = null, geoPick = null, geoInited = false;
+const geoSet = (msg, kind) => { geoStatus.textContent = msg; geoStatus.className = "form-status" + (kind ? " " + kind : ""); };
+const teamsOfYear = async (y) => tsFetchAll("sport_teams", y);
+
+function geoInit() {
+  if (geoInited) { geoReload(); return; }
+  geoInited = true;
+  if (window.L) {
+    geoMap = window.L.map("geoMap").setView([37.132, 128.191], 12);
+    window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap 기여자" }).addTo(geoMap);
+    geoMap.on("click", (e) => {
+      if (!document.getElementById("geoSchool").value) return geoSet("먼저 학교를 선택해 주세요.", "error");
+      geoPick = { lat: Number(e.latlng.lat.toFixed(6)), lng: Number(e.latlng.lng.toFixed(6)) };
+      geoShowPick();
+    });
+    setTimeout(() => geoMap.invalidateSize(), 200);
+  } else document.getElementById("geoMap").innerHTML = '<p class="empty-note">지도를 불러오지 못했습니다.</p>';
+  geoReload();
+  pwInit();
+}
+function geoShowPick() {
+  document.getElementById("geoLL").textContent = geoPick ? `${geoPick.lat}, ${geoPick.lng}` : "-";
+  if (!geoMap) return;
+  if (geoMarker) geoMap.removeLayer(geoMarker);
+  geoMarker = geoPick ? window.L.marker([geoPick.lat, geoPick.lng]).addTo(geoMap) : null;
+}
+async function geoReload() {
+  const { data, error } = await supabase.from("sport_schools").select("*").order("name");
+  if (error) { geoSet("학교 목록을 불러오지 못했습니다: " + error.message, "error"); return; }
+  geoSchools = data || [];
+  const cur = document.getElementById("geoSchool").value;
+  document.getElementById("geoSchool").innerHTML = '<option value="">(선택)</option>' + geoSchools.map((s) => `<option value="${tsEsc(s.name)}">${tsEsc(s.name)}${s.lat == null ? " (위치 없음)" : ""}</option>`).join("");
+  document.getElementById("geoSchool").value = geoSchools.some((s) => s.name === cur) ? cur : "";
+  const miss = geoSchools.filter((s) => s.lat == null || s.lng == null);
+  document.getElementById("geoCount").textContent = `등록 학교 ${geoSchools.length}교 · 위치 없는 학교 ${miss.length}교`;
+  document.getElementById("geoMissing").textContent = miss.length ? "위치 없음: " + miss.map((s) => s.name).join(", ") : "";
+}
+document.getElementById("geoSchool").addEventListener("change", (e) => {
+  const s = geoSchools.find((x) => x.name === e.target.value);
+  document.getElementById("geoAddr").value = s?.address || "";
+  geoPick = s && s.lat != null ? { lat: Number(s.lat), lng: Number(s.lng) } : null;
+  geoShowPick();
+  if (geoPick && geoMap) geoMap.setView([geoPick.lat, geoPick.lng], 15);
+});
+document.getElementById("geoLoadBtn").addEventListener("click", async () => {
+  try {
+    const year = Number(tsYearEl.value);
+    const teams = await teamsOfYear(year);
+    const have = new Set(geoSchools.map((s) => s.name));
+    const add = [];
+    teams.forEach((t) => { if (!have.has(t.school) && !add.some((a) => a.name === t.school)) add.push({ name: t.school, level: t.level || tsLevel("", t.school) }); });
+    if (!add.length) return geoSet(`${year}학년도 운동부 학교는 모두 등록되어 있습니다.`, "success");
+    const { data, error } = await supabase.from("sport_schools").insert(add).select("name");
+    if (error) throw new Error(error.message);
+    if (!data || data.length !== add.length) throw new Error(`추가 건수가 맞지 않습니다 (${data ? data.length : 0}/${add.length})`);
+    geoSet(`${add.length}개 학교를 추가했습니다.`, "success");
+    geoReload(); pwFillSports();
+  } catch (e) { geoSet("학교 불러오기 실패: " + e.message, "error"); }
+});
+document.getElementById("geoSaveBtn").addEventListener("click", async () => {
+  const name = document.getElementById("geoSchool").value;
+  if (!name) return geoSet("학교를 선택해 주세요.", "error");
+  if (!geoPick) return geoSet("지도에서 위치를 눌러 주세요.", "error");
+  const { data, error } = await supabase.from("sport_schools").update({ address: document.getElementById("geoAddr").value.trim() || null, lat: geoPick.lat, lng: geoPick.lng, updated_at: new Date().toISOString() }).eq("name", name).select("name");
+  if (error) return geoSet("저장 실패: " + error.message, "error");
+  if (!data || data.length !== 1) return geoSet("저장되지 않았습니다. 권한을 확인하세요.", "error");
+  geoSet(`${name} 위치를 저장했습니다.`, "success");
+  geoReload();
+});
+
+// ---- 진학 연계 ----
+const pwStatus = document.getElementById("pwStatus");
+const pwSet = (msg, kind) => { pwStatus.textContent = msg; pwStatus.className = "form-status" + (kind ? " " + kind : ""); };
+let pwTeams = [], pwRows = [];
+async function pwInit() { await pwFillSports(); }
+async function pwFillSports() {
+  try { pwTeams = await teamsOfYear(Number(tsYearEl.value)); } catch (e) { return pwSet("운동부 목록을 불러오지 못했습니다: " + e.message, "error"); }
+  const sports = [...new Set(pwTeams.map((t) => t.sport))].sort((a, b) => a.localeCompare(b, "ko"));
+  const el = document.getElementById("pwSport"), cur = el.value;
+  el.innerHTML = '<option value="">(선택)</option>' + sports.map((s) => `<option>${tsEsc(s)}</option>`).join("");
+  el.value = sports.includes(cur) ? cur : "";
+  pwRender();
+}
+document.getElementById("pwSport").addEventListener("change", pwRender);
+async function pwRender() {
+  const sport = document.getElementById("pwSport").value;
+  const board = document.getElementById("pwBoard"), from = document.getElementById("pwFrom"), to = document.getElementById("pwTo");
+  if (!sport) { board.innerHTML = ""; from.innerHTML = to.innerHTML = ""; return; }
+  const ts = pwTeams.filter((t) => t.sport === sport).sort((a, b) => levelOrder(a.level) - levelOrder(b.level) || a.school.localeCompare(b.school, "ko"));
+  const opt = ts.map((t) => `<option value="${tsEsc(t.school)}">${tsEsc(t.school)} (${tsEsc(t.level)})</option>`).join("");
+  from.innerHTML = opt; to.innerHTML = opt;
+  const { data, error } = await supabase.from("sport_pathways").select("*").eq("sport", sport).order("id");
+  if (error) { board.innerHTML = `<p class="empty-note">연계 목록을 불러오지 못했습니다: ${tsEsc(error.message)}</p>`; return; }
+  pwRows = data || [];
+  const col = (l) => `<div><b>${LEVEL_NAME[l]}</b><ul style="margin:4px 0; padding-left:18px;">${ts.filter((t) => t.level === l).map((t) => `<li>${tsEsc(t.school)}</li>`).join("") || "<li class='sub'>없음</li>"}</ul></div>`;
+  board.innerHTML = `<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">${col("초")}${col("중")}${col("고")}</div>
+    <p style="margin:10px 0 4px;"><b>등록된 연계 ${pwRows.length}건</b></p>
+    ${pwRows.length ? `<table class="result-table"><thead><tr><th>보내는 학교</th><th>받는 학교</th><th>비고</th><th></th></tr></thead><tbody>${pwRows.map((r) => `<tr><td>${tsEsc(r.from_school)}</td><td>${tsEsc(r.to_school)}</td><td>${tsEsc(r.note)}</td><td><button type="button" class="btn btn-ghost" style="color:var(--ink); border-color:var(--line);" data-pw-del="${r.id}">삭제</button></td></tr>`).join("")}</tbody></table>` : ""}`;
+  board.querySelectorAll("[data-pw-del]").forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm("이 연계를 삭제할까요?")) return;
+    const { data: d, error: er } = await supabase.from("sport_pathways").delete().eq("id", b.dataset.pwDel).select("id");
+    if (er) return pwSet("삭제 실패: " + er.message, "error");
+    if (!d || d.length !== 1) return pwSet("삭제되지 않았습니다. 권한을 확인하세요.", "error");
+    pwSet("삭제했습니다.", "success"); pwRender();
+  }));
+}
+document.getElementById("pwAddBtn").addEventListener("click", async () => {
+  const sport = document.getElementById("pwSport").value, from = document.getElementById("pwFrom").value, to = document.getElementById("pwTo").value;
+  if (!sport || !from || !to) return pwSet("종목과 보내는·받는 학교를 선택해 주세요.", "error");
+  const lv = (n) => pwTeams.find((t) => t.sport === sport && t.school === n)?.level;
+  const a = levelOrder(lv(from)), b = levelOrder(lv(to));
+  if (a === b) return pwSet("같은 학교급끼리는 연결할 수 없습니다.", "error");
+  if (a > b) return pwSet("거꾸로(상급 → 하급) 연결은 할 수 없습니다. 초 → 중 → 고 방향으로 선택해 주세요.", "error");
+  const { data, error } = await supabase.from("sport_pathways").insert([{ sport, from_school: from, to_school: to, note: document.getElementById("pwNote").value.trim() || null }]).select("id");
+  if (error) return pwSet(/duplicate|unique/i.test(error.message) ? "이미 등록된 연계입니다." : "추가 실패: " + error.message, "error");
+  if (!data || data.length !== 1) return pwSet("추가되지 않았습니다. 권한을 확인하세요.", "error");
+  document.getElementById("pwNote").value = "";
+  pwSet("연계를 추가했습니다.", "success"); pwRender();
+});
+
+// ---- 현황 보고서 (hwpx) ----
+const rpStatus = document.getElementById("rpStatus");
+const rpSet = (msg, kind) => { rpStatus.textContent = msg; rpStatus.className = "form-status" + (kind ? " " + kind : ""); };
+let rpData = null, rpModel = null;
+async function rpFetchAwards(y) {
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from("sport_awards").select("year,competition,sport,school,medal,place").eq("year", y).order("id").range(from, from + 999);
+    if (error) throw new Error("성과 기록: " + error.message);
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  return rows;
+}
+function rpRender() {
+  rpModel = window.HwpxDocs.teamReportModel(rpData);
+  document.getElementById("rpPreview").innerHTML = window.HwpxDocs.teamReportPreview(rpModel, tsEsc);
+  document.getElementById("rpInsightBox").style.display = "";
+  document.getElementById("rpInsights").value = rpModel.insights.join("\n");
+  document.getElementById("rpDownloadBtn").disabled = false;
+}
+document.getElementById("rpPreviewBtn").addEventListener("click", async () => {
+  const year = Number(document.getElementById("rpYear").value), awardYear = Number(document.getElementById("rpAwardYear").value);
+  if (!year || !awardYear) return rpSet("학년도와 성과 연도를 입력해 주세요.", "error");
+  if (!window.HwpxDocs) return rpSet("한글 파일 도구를 불러오지 못했습니다.", "error");
+  rpSet("자료를 모으는 중…");
+  try {
+    const teams = await tsFetchAll("sport_teams", year);
+    if (!teams.length) return rpSet(`${year}학년도 운동부 자료가 없습니다.`, "error");
+    const prevTeams = await tsFetchAll("sport_teams", year - 1);
+    const awards = await rpFetchAwards(awardYear);
+    const pw = await supabase.from("sport_pathways").select("*");
+    const prev = prevTeams.length ? { teams: prevTeams.length, schools: new Set(prevTeams.map((t) => t.school)).size, players: prevTeams.reduce((a, t) => a + (t.players_m || 0) + (t.players_f || 0), 0) } : null;
+    const diag = pw.error ? [] : diagnose(teams, pw.data || []);
+    rpData = { year, awardYear, teams, prev, awards, diag, today: new Date() };
+    rpRender();
+    rpSet(pw.error ? "연계 정보(sport_pathways)를 읽지 못해 3장은 '자료 없음'으로 표시했습니다." : "미리보기를 확인하고 시사점을 고친 뒤 [한글 내려받기]를 누르세요.", pw.error ? "error" : "");
+  } catch (e) { rpSet("자료를 불러오지 못했습니다: " + e.message, "error"); }
+});
+document.getElementById("rpApplyBtn").addEventListener("click", () => {
+  if (!rpData) return;
+  rpData.insights = document.getElementById("rpInsights").value.split("\n").map((x) => x.trim()).filter(Boolean);
+  const keep = rpData.insights; rpRender(); document.getElementById("rpInsights").value = keep.join("\n");
+});
+document.getElementById("rpDownloadBtn").addEventListener("click", async () => {
+  if (!rpData) return;
+  rpData.insights = document.getElementById("rpInsights").value.split("\n").map((x) => x.trim()).filter(Boolean);
+  try {
+    const { blob, model } = await window.HwpxDocs.buildTeamReport(window.HwpxDocs.teamReportModel(rpData), { today: new Date() });
+    downloadBlob(blob, window.HwpxDocs.teamReportFileName(model));
+    rpSet("한글 파일을 만들었습니다. 한글에서 열어 표·줄바꿈·쪽수를 꼭 확인해 주세요.", "success");
+  } catch (e) { rpSet("한글 파일 만들기 실패: " + e.message, "error"); }
+});
 
 checkAuthAndRender();

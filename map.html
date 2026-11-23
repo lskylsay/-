@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#16233F">
+<meta name="apple-mobile-web-app-title" content="마이스포츠클럽">
+<title>제천 학교운동부 지도 — 마이스포츠클럽</title>
+<meta name="description" content="제천 관내 초·중·고 학교운동부 위치를 지도에서 안내합니다.">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="header-left">
+      <a href="index.html" class="brand">마이스포츠클럽<span>.</span></a>
+      <a href="index.html" class="header-home-btn">🏠 처음화면</a>
+    </div>
+    <nav class="site-nav">
+      <a href="index.html">처음화면</a>
+    </nav>
+  </div>
+</header>
+
+<section class="block">
+  <div class="wrap">
+    <span class="bib">제천 학교운동부 지도</span>
+    <h2 style="margin-top:14px;">제천 학교운동부 지도</h2>
+    <p class="sub">학교급별로 색을 달리해 운동부가 있는 학교의 위치와 종목·선수 수를 보여 줍니다.</p>
+    <nav class="ts-nav" aria-label="학교운동부 메뉴"><a href="teams.html">운동부 현황</a><a href="awards.html">성과 기록</a><a href="dashboard.html">현황 대시보드</a><a href="pathways.html">연계 경로도</a><a href="map.html" class="active" aria-current="page">학교 지도</a></nav>
+    <div id="mapApp" style="margin-top:20px;"><p class="empty-note">불러오는 중…</p></div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>마이스포츠클럽</span>
+    <span><a href="admin.html" style="color:inherit;">관리자</a></span>
+  </div>
+</footer>
+
+<script src="config.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="map.js"></script>
+</body>
+</html>
