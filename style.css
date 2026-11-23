@@ -1744,3 +1744,21 @@ body.modal-open { overflow: hidden; }
 .record-entry-msg.ok { color: #1f7a3d; }
 .record-entry-msg.err { color: #c0392b; }
 @media print { .record-entry { display: none; } }
+
+/* ---------- 학교운동부 현황 (teams-status.js) ---------- */
+.ts-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; }
+.ts-row select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+.ts-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 18px; }
+.ts-summary div { border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; background: var(--paper); }
+.ts-summary b { display: block; font-size: 1.8rem; color: var(--navy); }
+.ts-summary span { font-size: 0.85rem; color: var(--ink-soft); }
+.ts-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.ts-table { margin: 0; min-width: 100%; }
+.ts-table th, .ts-table td { white-space: nowrap; text-align: center; }
+.ts-table .ts-sticky { position: sticky; left: 0; z-index: 1; background: #F4F4EE; text-align: left; }
+.ts-link { background: none; border: none; padding: 0; font: inherit; color: var(--navy); cursor: pointer; text-decoration: underline; }
+.ts-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.ts-card { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--paper); }
+.ts-card p { margin: 4px 0 0; }
+.ts-section-title { margin: 44px 0 0; padding-top: 24px; border-top: 1px solid var(--line); }
+@media (max-width: 640px) { .ts-summary { grid-template-columns: repeat(2, 1fr); } }
