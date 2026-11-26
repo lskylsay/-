@@ -1562,6 +1562,38 @@ spUploadBtn.addEventListener("click", async () => {
   loadSchoolpeAdmin();
 });
 
+// ---- 여러 파일(최대 10개) 업로드 공통 도우미 (조사표·성과 기록 업로드가 같이 씀) ----
+const MF_MAX = 10;
+const mfIsExcel = (f) => /\.xlsx?$/i.test(f.name);
+const MF_ACCEPT_MSG = "엑셀 파일(.xlsx/.xls)만 올릴 수 있습니다";
+const mfEsc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+// 파일을 하나씩 읽음. parse(wb) → 결과, fatal(결과) → 오류 문구(없으면 null). 반환: [{ file, data, error? }]
+async function mfReadAll(ctrl, files, parse, fatal, setMsg) {
+  ctrl.resetStatus();
+  const res = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    setMsg(`${i + 1}/${files.length} 파일 처리 중… (${file.name})`);
+    ctrl.setStatus(file, "읽는 중");
+    await new Promise((r) => setTimeout(r, 0));   // 화면이 먼저 갱신되도록
+    let r;
+    try {
+      const data = parse(XLSX.read(await file.arrayBuffer(), { type: "array" }));
+      const fe = fatal(data);
+      r = fe ? { file, data, error: fe } : { file, data };
+    } catch (e) { r = { file, error: "파일을 읽지 못했습니다: " + e.message }; }
+    ctrl.setStatus(file, r.error ? "오류" : "완료");
+    res.push(r);
+  }
+  return res;
+}
+// 파일별 접이식 칸 (오류 파일은 빨간색으로 펼쳐 보임)
+function mfBox(r, summary, body) {
+  const bad = !!r.error;
+  return `<details${bad ? " open" : ""} class="mf-box" style="margin:6px 0; padding:8px 12px; border:1px solid ${bad ? "#c0392b" : "var(--line)"}; border-radius:6px;${bad ? " background:#fdecea; color:#a93226;" : ""}"><summary style="cursor:pointer; font-weight:700;">${mfEsc(r.file.name)} — ${bad ? "⚠ 오류 · 저장에서 제외" : summary}</summary><div style="margin-top:8px; line-height:1.7;">${bad ? mfEsc(r.error) : body}</div></details>`;
+}
+const mfErrList = (errors) => errors.length ? `<details open style="margin:8px 0;"><summary style="color:var(--clay);">읽지 못한 행 ${errors.length}건</summary><ul>${errors.map((e) => `<li>${mfEsc(e.sheet)} ${e.row}행: ${mfEsc(e.reason)}</li>`).join("")}</ul></details>` : "";
+
 // ================= 운동부 현황 조사표 업로드 (선택3) =================
 // 테이블: sport_teams / sport_staff / sport_athletes (관리자 전용 RLS). 학년도는 파일이 아니라 화면 입력값을 씀.
 const tsYearEl = document.getElementById("tsYear");
@@ -1569,7 +1601,17 @@ const tsFile = document.getElementById("tsFile");
 const tsStatus = document.getElementById("tsStatus");
 const tsPreviewEl = document.getElementById("tsPreview");
 const tsSaveBtn = document.getElementById("tsSaveBtn");
-initDropzone(document.getElementById("tsDropzone"), tsFile, document.getElementById("tsFileName"));
+const tsPreviewBtnEl = document.getElementById("tsPreviewBtn");
+let tsBusy = false;
+const tsInvalidate = () => { tsParsed = null; tsSaveBtn.disabled = true; tsPreviewEl.innerHTML = ""; };
+const tsCtrl = initDropzone(document.getElementById("tsDropzone"), tsFile, document.getElementById("tsFileName"),
+  { multiple: true, max: MF_MAX, accept: mfIsExcel, acceptMsg: MF_ACCEPT_MSG, onChange: tsInvalidate });
+// 읽는 중·저장 중에는 버튼·목록을 잠가 두 번 눌리지 않게 함
+function tsBusySet(v) {
+  tsBusy = v; tsCtrl.setLocked(v); tsPreviewBtnEl.disabled = v; tsYearEl.disabled = v;
+  document.querySelectorAll('input[name="tsMode"]').forEach((el) => { el.disabled = v; });
+  if (v) tsSaveBtn.disabled = true;
+}
 
 let tsParsed = null;
 const tsNorm = (v) => String(v ?? "").replace(/[\s ]+/g, "");
@@ -1624,6 +1666,22 @@ function tsReadSheet(wb, nameKey, cols, required, build, out, sheetLabel) {
   return rows;
 }
 
+// 합친 자료로 학교명 표기 섞임·고아 행을 검사
+function tsWarnings(teams, staff, athletes) {
+  // 학교명 표기 섞임 경고: 같은 학교로 보이는 이름이 둘 이상
+  const warnings = [];
+  const groups = {};
+  [...teams, ...staff, ...athletes].forEach((r) => {
+    const key = r.school.replace(/(초등학교|중학교|고등학교|초|중|고)$/, "");
+    (groups[key + "|" + (r.school.match(/(초|중|고)(등학교|학교)?$/)?.[1] || "")] ||= new Set()).add(r.school);
+  });
+  Object.values(groups).forEach((set) => { if (set.size > 1) warnings.push(`같은 학교로 보이는 이름이 여러 개입니다: ${[...set].join(" / ")} — 하나로 통일해 주세요`); });
+  const teamKeys = new Set(teams.map((t) => t.school + "|" + t.sport));
+  const orphan = new Set([...staff, ...athletes].filter((r) => !teamKeys.has(r.school + "|" + r.sport)).map((r) => `${r.school} ${r.sport}`));
+  if (orphan.size) warnings.push(`'운동부 현황'에 없는 학교·종목의 지도자/선수가 있습니다: ${[...orphan].slice(0, 8).join(", ")}${orphan.size > 8 ? " …" : ""}`);
+  return warnings;
+}
+
 function parseTeamsSurvey(wb, year) {
   const out = { year, teams: [], staff: [], athletes: [], errors: [], warnings: [], skippedExamples: 0 };
   const seen = new Set();
@@ -1667,49 +1725,77 @@ function parseTeamsSurvey(wb, year) {
       map: (g) => ({ detail: g("detail") || null, feature: g("feature") || null, support: g("support") || null }),
     }),
   ];
-  // 학교명 표기 섞임 경고: 같은 학교로 보이는 이름이 둘 이상
-  const groups = {};
-  [...out.teams, ...out.staff, ...out.athletes].forEach((r) => {
-    const key = r.school.replace(/(초등학교|중학교|고등학교|초|중|고)$/, "");
-    (groups[key + "|" + (r.school.match(/(초|중|고)(등학교|학교)?$/)?.[1] || "")] ||= new Set()).add(r.school);
-  });
-  Object.values(groups).forEach((set) => { if (set.size > 1) out.warnings.push(`같은 학교로 보이는 이름이 여러 개입니다: ${[...set].join(" / ")} — 하나로 통일해 주세요`); });
-  const teamKeys = new Set(out.teams.map((t) => t.school + "|" + t.sport));
-  const orphan = new Set([...out.staff, ...out.athletes].filter((r) => !teamKeys.has(r.school + "|" + r.sport)).map((r) => `${r.school} ${r.sport}`));
-  if (orphan.size) out.warnings.push(`'운동부 현황'에 없는 학교·종목의 지도자/선수가 있습니다: ${[...orphan].slice(0, 8).join(", ")}${orphan.size > 8 ? " …" : ""}`);
   return out;
 }
 
-tsFile.addEventListener("change", () => { tsParsed = null; tsSaveBtn.disabled = true; tsPreviewEl.innerHTML = ""; });
-tsYearEl.addEventListener("change", () => { tsParsed = null; tsSaveBtn.disabled = true; tsLoadList(); });
+tsYearEl.addEventListener("change", () => { tsParsed = null; tsSaveBtn.disabled = true; tsPreviewEl.innerHTML = ""; tsLoadList(); });
 
-document.getElementById("tsPreviewBtn").addEventListener("click", async () => {
-  const file = tsFile.files[0];
+// 같은 학교·종목(학년도는 하나)이 여러 파일에 있으면 나중 파일 것만 씀. 합친 결과로 학교명 표기 경고도 검사
+const tsKey = (r) => r.school + "\t" + r.sport;
+const josaGa = (w) => { const c = String(w).trim().slice(-1).charCodeAt(0); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0 ? "이" : "가"; };
+function tsMerge(results, year) {
+  const ok = results.filter((r) => !r.error);
+  const where = new Map();
+  ok.forEach((r, i) => {
+    new Set([...r.data.teams, ...r.data.staff, ...r.data.athletes].map(tsKey)).forEach((k) => { if (!where.has(k)) where.set(k, []); where.get(k).push(i); });
+  });
+  const warnings = [];
+  where.forEach((idxs, k) => {
+    if (idxs.length < 2) return;
+    const [school, sport] = k.split("\t");
+    warnings.push(`${school} ${sport}${josaGa(sport)} 파일 ${idxs.length}개에 있습니다(${idxs.map((i) => ok[i].file.name).join(", ")}) — 나중 파일 내용으로 저장합니다.`);
+  });
+  const merged = { teams: [], staff: [], athletes: [] };
+  ok.forEach((r, i) => {
+    for (const t of Object.keys(merged)) merged[t].push(...r.data[t].filter((row) => where.get(tsKey(row)).slice(-1)[0] === i));
+  });
+  warnings.push(...tsWarnings(merged.teams, merged.staff, merged.athletes));
+  return { year, results, merged, warnings };
+}
+const tsSumM = (teams) => teams.reduce((a, t) => a + (t.players_m || 0), 0);
+const tsSumF = (teams) => teams.reduce((a, t) => a + (t.players_f || 0), 0);
+const tsSchoolsOf = (d) => [...new Set([...d.teams, ...d.staff, ...d.athletes].map((r) => r.school))];
+
+tsPreviewBtnEl.addEventListener("click", async () => {
+  const files = tsCtrl.getFiles();
   const year = Number(tsYearEl.value);
   if (!year) return tsSetStatus("학년도를 입력해 주세요.", "error");
-  if (!file) return tsSetStatus("조사표 파일(.xlsx)을 선택해 주세요.", "error");
+  if (!files.length) return tsSetStatus("조사표 파일(.xlsx)을 1개 이상 선택해 주세요.", "error");
+  tsBusySet(true);
+  tsParsed = null; tsSaveBtn.disabled = true; tsPreviewEl.innerHTML = "";
+  let results;
   try {
-    const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
-    tsParsed = parseTeamsSurvey(wb, year);
-  } catch (e) { tsParsed = null; return tsSetStatus("파일을 읽지 못했습니다: " + e.message, "error"); }
-  const p = tsParsed;
-  const all = [...p.teams, ...p.staff, ...p.athletes];
-  const schools = new Set(all.map((r) => r.school));
-  const sports = new Set(all.map((r) => r.sport));
-  const m = p.teams.reduce((a, t) => a + (t.players_m || 0), 0), f = p.teams.reduce((a, t) => a + (t.players_f || 0), 0);
+    results = await mfReadAll(tsCtrl, files, (wb) => parseTeamsSurvey(wb, year),
+      (d) => { const e = d.errors.find((x) => x.sheet === "운동부 현황" && x.row === "-"); return e ? `'운동부 현황' 시트: ${e.reason}` : null; },
+      (m) => tsSetStatus(m));
+  } finally { tsBusySet(false); }
+  const p = tsParsed = tsMerge(results, year);
+  const m = p.merged, bad = results.filter((r) => r.error);
+  const schools = tsSchoolsOf(m), sports = new Set([...m.teams, ...m.staff, ...m.athletes].map((r) => r.sport));
+  const boxes = results.map((r) => {
+    if (r.error) return mfBox(r, "", "");
+    const d = r.data, sc = tsSchoolsOf(d);
+    return mfBox(r, `학교 ${sc.length} · 운동부 ${d.teams.length} · 지도자 ${d.staff.length} · 선수 ${tsSumM(d.teams) + tsSumF(d.teams)}명(남 ${tsSumM(d.teams)}/여 ${tsSumF(d.teams)})`,
+      `학교: ${tsEsc(sc.join(", ") || "-")}<br>선수 명단 ${d.athletes.length}행(개인 ${d.athletes.filter((a) => a.team_type === "개인").length} · 단체 ${d.athletes.filter((a) => a.team_type === "단체").length}) · 건너뛴 행(예시 등) ${d.skippedExamples}행` +
+      mfErrList(d.errors) + tsTeamsTable(d.teams));
+  });
   tsPreviewEl.innerHTML = `
-    <div style="margin:12px 0; line-height:1.7;">
-      <b>${year}학년도</b> — 운동부 현황 ${p.teams.length}행 · 감독·코치 ${p.staff.length}행 · 개인종목 선수 ${p.athletes.filter((a) => a.team_type === "개인").length}행 · 단체종목 선수 ${p.athletes.filter((a) => a.team_type === "단체").length}행<br>
-      학교 ${schools.size}곳 · 종목 ${sports.size}개 · 선수 수 ${m + f}명 (남 ${m} / 여 ${f}) · 예시 행 제외 ${p.skippedExamples}행
+    <div style="margin:12px 0; line-height:1.7; padding:10px 12px; background:var(--paper, #f6f4ef); border-radius:6px;">
+      <b>${year}학년도 합계 (저장 대상)</b><br>
+      파일 ${results.length}개 중 ${results.length - bad.length}개${bad.length ? ` (오류 ${bad.length}개 제외)` : ""} · 학교 ${schools.length}곳 · 종목 ${sports.size}개 · 운동부 ${m.teams.length} · 지도자 ${m.staff.length} · 선수 ${tsSumM(m.teams) + tsSumF(m.teams)}명 (남 ${tsSumM(m.teams)} / 여 ${tsSumF(m.teams)}) · 선수 명단 ${m.athletes.length}행
     </div>
     ${p.warnings.map((w) => `<p style="color:var(--clay); margin:4px 0;">⚠ ${tsEsc(w)}</p>`).join("")}
-    ${p.errors.length ? `<details open style="margin:8px 0;"><summary style="color:var(--clay);">읽지 못한 행 ${p.errors.length}건</summary><ul>${p.errors.map((e) => `<li>${tsEsc(e.sheet)} ${e.row}행: ${tsEsc(e.reason)}</li>`).join("")}</ul></details>` : ""}
-    <div style="overflow-x:auto;"><table class="result-table"><thead><tr><th>학교</th><th>종목</th><th>구분</th><th>급</th><th>운동부 명칭</th><th>창단</th><th>남</th><th>여</th><th>계</th><th>훈련 장소</th><th>예상 금/은/동</th></tr></thead><tbody>
-    ${p.teams.map((t) => `<tr><td>${tsEsc(t.school)}</td><td>${tsEsc(t.sport)}</td><td>${tsEsc(t.kind)}</td><td>${tsEsc(t.level)}</td><td>${tsEsc(t.team_name)}</td><td>${tsEsc(t.founded)}</td><td>${t.players_m ?? 0}</td><td>${t.players_f ?? 0}</td><td>${(t.players_m || 0) + (t.players_f || 0)}</td><td>${tsEsc(t.training_place)}</td><td>${t.exp_gold ?? 0}/${t.exp_silver ?? 0}/${t.exp_bronze ?? 0}</td></tr>`).join("")}
-    </tbody></table></div>`;
-  tsSaveBtn.disabled = !all.length;
-  tsSetStatus(all.length ? "미리보기를 확인한 뒤 [저장]을 누르세요." : "저장할 행이 없습니다.", all.length ? "" : "error");
+    ${boxes.join("")}`;
+  const n = m.teams.length + m.staff.length + m.athletes.length;
+  tsSaveBtn.disabled = !n;
+  tsSetStatus(n ? "미리보기를 확인한 뒤 [저장]을 누르세요." + (bad.length ? ` (오류 파일 ${bad.length}개는 저장하지 않습니다)` : "") : "저장할 행이 없습니다.", n ? "" : "error");
 });
+function tsTeamsTable(teams) {
+  if (!teams.length) return "";
+  return `<div style="overflow-x:auto;"><table class="result-table"><thead><tr><th>학교</th><th>종목</th><th>구분</th><th>급</th><th>운동부 명칭</th><th>창단</th><th>남</th><th>여</th><th>계</th><th>훈련 장소</th><th>예상 금/은/동</th></tr></thead><tbody>
+    ${teams.map((t) => `<tr><td>${tsEsc(t.school)}</td><td>${tsEsc(t.sport)}</td><td>${tsEsc(t.kind)}</td><td>${tsEsc(t.level)}</td><td>${tsEsc(t.team_name)}</td><td>${tsEsc(t.founded)}</td><td>${t.players_m ?? 0}</td><td>${t.players_f ?? 0}</td><td>${(t.players_m || 0) + (t.players_f || 0)}</td><td>${tsEsc(t.training_place)}</td><td>${t.exp_gold ?? 0}/${t.exp_silver ?? 0}/${t.exp_bronze ?? 0}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
 
 const TS_TABLES = ["sport_teams", "sport_staff", "sport_athletes"];
 async function tsOldIds(table, year, schools) {
@@ -1728,17 +1814,21 @@ async function tsChunked(rows, fn) { for (let i = 0; i < rows.length; i += 200) 
 
 tsSaveBtn.addEventListener("click", async () => {
   const p = tsParsed;
-  if (!p) return;
+  if (!p || tsBusy) return;
   const mode = document.querySelector('input[name="tsMode"]:checked').value;
-  const schools = [...new Set([...p.teams, ...p.staff, ...p.athletes].map((r) => r.school))];
-  if (mode === "year" && !confirm(`${p.year}학년도 운동부 자료 전체를 지우고 이 파일로 교체합니다.\n파일에 없는 학교의 자료도 모두 사라집니다. 계속할까요?`)) return;
-  if (mode === "schools" && !confirm(`${p.year}학년도 ${schools.length}개 학교(${schools.slice(0, 5).join(", ")}${schools.length > 5 ? " 외" : ""})의 기존 자료를 지우고 이 파일로 교체할까요?`)) return;
+  const m = p.merged;
+  const schools = tsSchoolsOf(m);
+  const bad = p.results.filter((r) => r.error);
+  if (mode === "year" && !confirm(`${p.year}학년도 운동부 자료 전체를 지우고 이 파일들로 교체합니다.\n파일에 없는 학교의 자료도 모두 사라집니다. 계속할까요?`)) return;
+  if (mode === "schools" && !confirm(`${p.year}학년도 ${schools.length}개 학교(${schools.slice(0, 5).join(", ")}${schools.length > 5 ? " 외" : ""})의 기존 자료를 지우고 이 파일들로 교체할까요?`)) return;
 
+  tsBusySet(true);
   tsSaveBtn.disabled = true;
   tsSetStatus("저장 중…");
   const inserted = { sport_staff: [], sport_athletes: [] };
+  let ok = false;
   try {
-    // 1) 지울 대상(옛 자료) id를 먼저 기억
+    // 1) 지울 대상(옛 자료) id를 먼저 기억 — 합친 결과에 나온 학교만
     const scope = mode === "year" ? null : schools;
     const old = {};
     for (const t of TS_TABLES) old[t] = await tsOldIds(t, p.year, scope);
@@ -1746,13 +1836,14 @@ tsSaveBtn.addEventListener("click", async () => {
     // 2) 새 자료를 먼저 넣음 (운동부는 학년도·학교·종목이 같으면 덮어씀)
     const now = new Date().toISOString();
     const keepIds = new Set();
-    await tsChunked(p.teams.map((t) => ({ ...t, updated_at: now })), async (chunk) => {
+    await tsChunked(m.teams.map((t) => ({ ...t, updated_at: now })), async (chunk) => {
       const { data, error } = await supabase.from("sport_teams").upsert(chunk, { onConflict: "year,school,sport" }).select("id");
       if (error) throw new Error("운동부 현황 저장 실패: " + error.message);
       if (!data || data.length !== chunk.length) throw new Error(`운동부 현황 저장 건수가 맞지 않습니다 (${data ? data.length : 0}/${chunk.length})`);
       data.forEach((r) => keepIds.add(r.id));
     });
-    for (const [table, rows] of [["sport_staff", p.staff], ["sport_athletes", p.athletes]]) {
+    for (const [table, rows] of [["sport_staff", m.staff], ["sport_athletes", m.athletes]]) {
+      tsSetStatus(`저장 중… (${table === "sport_staff" ? "지도자" : "선수"} ${rows.length}건)`);
       await tsChunked(rows, async (chunk) => {
         const { data, error } = await supabase.from(table).insert(chunk).select("id");
         if (error) throw new Error(`${table} 저장 실패: ${error.message}`);
@@ -1762,6 +1853,7 @@ tsSaveBtn.addEventListener("click", async () => {
     }
 
     // 3) 새 자료가 모두 들어간 뒤에야 옛 자료를 지움
+    tsSetStatus("옛 자료 정리 중…");
     let deleted = 0, failed = 0;
     for (const t of TS_TABLES) {
       const gone = old[t].filter((id) => !keepIds.has(id));
@@ -1771,18 +1863,21 @@ tsSaveBtn.addEventListener("click", async () => {
         deleted += n; failed += chunk.length - n;
       });
     }
-    const msg = `저장 완료: 운동부 ${p.teams.length} · 지도자 ${p.staff.length} · 선수 ${p.athletes.length}건 등록, 옛 자료 ${deleted}건 정리`;
+    const msg = `저장 완료: 학교 ${schools.length} · 운동부 ${m.teams.length} · 지도자 ${m.staff.length} · 선수 명단 ${m.athletes.length}건 등록, 옛 자료 ${deleted}건 정리`;
     if (failed) tsSetStatus(msg + ` (옛 자료 ${failed}건은 지우지 못했습니다 — 권한을 확인하세요)`, "error");
     else tsSetStatus(msg, "success");
-    tsParsed = null;
+    tsPreviewEl.innerHTML = `<div style="margin:12px 0; line-height:1.7;"><b>저장 요약</b> — 파일 ${p.results.length - bad.length}개 저장 · 학교 ${schools.length} · 운동부 ${m.teams.length} · 지도자 ${m.staff.length} · 선수 명단 ${m.athletes.length}건` +
+      (bad.length ? `<br><span style="color:#c0392b;">제외된 파일 ${bad.length}개: ${bad.map((r) => tsEsc(r.file.name)).join(", ")}</span>` : "<br>제외된 파일 없음") + `</div>`;
+    tsParsed = null; ok = true;
   } catch (e) {
     // 새로 넣던 지도자·선수 자료는 되돌림(옛 자료는 아직 지우지 않은 상태)
     for (const table of Object.keys(inserted)) {
       await tsChunked(inserted[table], (chunk) => supabase.from(table).delete().in("id", chunk));
     }
     tsSetStatus(e.message + " — 기존 자료는 지우지 않았습니다.", "error");
-    tsSaveBtn.disabled = false;
   }
+  tsBusySet(false);
+  tsSaveBtn.disabled = ok || !tsParsed;
   tsLoadList();
 });
 
@@ -1857,7 +1952,14 @@ const axFile = document.getElementById("axFile");
 const axStatus = document.getElementById("axStatus");
 const axPreviewEl = document.getElementById("axPreview");
 const axSaveBtn = document.getElementById("axSaveBtn");
-initDropzone(document.getElementById("axDropzone"), axFile, document.getElementById("axFileName"));
+let axBusy = false;
+const axCtrl = initDropzone(document.getElementById("axDropzone"), axFile, document.getElementById("axFileName"),
+  { multiple: true, max: MF_MAX, accept: mfIsExcel, acceptMsg: MF_ACCEPT_MSG, onChange: () => { axParsed = null; axSaveBtn.disabled = true; axPreviewEl.innerHTML = ""; } });
+function axBusySet(v) {
+  axBusy = v; axCtrl.setLocked(v); document.getElementById("axPreviewBtn").disabled = v;
+  document.querySelectorAll('input[name="axMode"]').forEach((el) => { el.disabled = v; });
+  if (v) axSaveBtn.disabled = true;
+}
 
 const AX_MEDAL_BY_PLACE = { 1: "금", 2: "은", 3: "동" };
 const AX_COMP_BIG = ["전국소년체육대회", "전국체육대회"];
@@ -1916,22 +2018,37 @@ function parseAwards(wb) {
   return out;
 }
 const axCount = (rows) => ({ 금: rows.filter((r) => r.medal === "금").length, 은: rows.filter((r) => r.medal === "은").length, 동: rows.filter((r) => r.medal === "동").length });
+const axComboCount = (rows) => new Set(rows.map((r) => r.year + "|" + r.competition)).size;
 
-axFile.addEventListener("change", () => { axParsed = null; axSaveBtn.disabled = true; axPreviewEl.innerHTML = ""; });
 document.getElementById("axPreviewBtn").addEventListener("click", async () => {
-  const file = axFile.files[0];
-  if (!file) return axSet(axStatus, "성과 기록 파일(.xlsx)을 선택해 주세요.", "error");
-  try { axParsed = parseAwards(XLSX.read(await file.arrayBuffer(), { type: "array" })); }
-  catch (e) { axParsed = null; return axSet(axStatus, "파일을 읽지 못했습니다: " + e.message, "error"); }
-  const p = axParsed, c = axCount(p.rows);
+  const files = axCtrl.getFiles();
+  if (!files.length) return axSet(axStatus, "성과 기록 파일(.xlsx)을 1개 이상 선택해 주세요.", "error");
+  axBusySet(true);
+  axParsed = null; axSaveBtn.disabled = true; axPreviewEl.innerHTML = "";
+  let results;
+  try {
+    results = await mfReadAll(axCtrl, files, parseAwards,
+      (d) => { const e = d.errors.find((x) => x.sheet === "입상 기록" && x.row === "-"); return e ? `'입상 기록' 시트: ${e.reason}` : null; },
+      (m) => axSet(axStatus, m));
+  } finally { axBusySet(false); }
+  const rows = results.filter((r) => !r.error).flatMap((r) => r.data.rows);   // 파일 순서대로 합침
+  const bad = results.filter((r) => r.error);
+  axParsed = { results, rows };
+  const c = axCount(rows);
+  const boxes = results.map((r) => {
+    if (r.error) return mfBox(r, "", "");
+    const d = r.data, cc = axCount(d.rows);
+    return mfBox(r, `${d.rows.length}건 · 금 ${cc.금} 은 ${cc.은} 동 ${cc.동}`,
+      `건너뛴 행(예시 등) ${d.skippedExamples}행` + mfErrList(d.errors) +
+      `<div style="overflow-x:auto;"><table class="result-table"><thead><tr><th>연도</th><th>대회</th><th>종목</th><th>세부</th><th>학교</th><th>성별</th><th>구분</th><th>순위</th><th>메달</th><th>선수명</th><th>기록</th></tr></thead><tbody>
+      ${d.rows.map((x) => `<tr><td>${x.year}</td><td>${tsEsc(x.competition)}</td><td>${tsEsc(x.sport)}</td><td>${tsEsc(x.detail)}</td><td>${tsEsc(x.school)}</td><td>${tsEsc(x.gender)}</td><td>${tsEsc(x.team_type)}</td><td>${x.place ?? ""}</td><td>${tsEsc(x.medal)}</td><td>${tsEsc(x.athlete)}</td><td>${tsEsc(x.record)}</td></tr>`).join("")}
+      </tbody></table></div>`);
+  });
   axPreviewEl.innerHTML = `
-    <div style="margin:12px 0; line-height:1.7;"><b>${p.rows.length}건</b> 읽음 — 금 ${c.금} · 은 ${c.은} · 동 ${c.동} (메달 없음 ${p.rows.length - c.금 - c.은 - c.동}) · 예시 행 제외 ${p.skippedExamples}행</div>
-    ${p.errors.length ? `<details open style="margin:8px 0;"><summary style="color:var(--clay);">읽지 못한 행 ${p.errors.length}건</summary><ul>${p.errors.map((e) => `<li>${tsEsc(e.sheet)} ${e.row}행: ${tsEsc(e.reason)}</li>`).join("")}</ul></details>` : ""}
-    <div style="overflow-x:auto;"><table class="result-table"><thead><tr><th>연도</th><th>대회</th><th>종목</th><th>세부</th><th>학교</th><th>성별</th><th>구분</th><th>순위</th><th>메달</th><th>선수명</th><th>기록</th></tr></thead><tbody>
-    ${p.rows.map((r) => `<tr><td>${r.year}</td><td>${tsEsc(r.competition)}</td><td>${tsEsc(r.sport)}</td><td>${tsEsc(r.detail)}</td><td>${tsEsc(r.school)}</td><td>${tsEsc(r.gender)}</td><td>${tsEsc(r.team_type)}</td><td>${r.place ?? ""}</td><td>${tsEsc(r.medal)}</td><td>${tsEsc(r.athlete)}</td><td>${tsEsc(r.record)}</td></tr>`).join("")}
-    </tbody></table></div>`;
-  axSaveBtn.disabled = !p.rows.length;
-  axSet(axStatus, p.rows.length ? "미리보기를 확인한 뒤 [저장]을 누르세요." : "저장할 행이 없습니다.", p.rows.length ? "" : "error");
+    <div style="margin:12px 0; line-height:1.7; padding:10px 12px; background:var(--paper, #f6f4ef); border-radius:6px;"><b>합계 (저장 대상)</b><br>파일 ${results.length}개 중 ${results.length - bad.length}개${bad.length ? ` (오류 ${bad.length}개 제외)` : ""} · <b>${rows.length}건</b> — 금 ${c.금} · 은 ${c.은} · 동 ${c.동} (메달 없음 ${rows.length - c.금 - c.은 - c.동}) · 연도·대회 ${axComboCount(rows)}개</div>
+    ${boxes.join("")}`;
+  axSaveBtn.disabled = !rows.length;
+  axSet(axStatus, rows.length ? "미리보기를 확인한 뒤 [저장]을 누르세요." + (bad.length ? ` (오류 파일 ${bad.length}개는 저장하지 않습니다)` : "") : "저장할 행이 없습니다.", rows.length ? "" : "error");
 });
 
 async function axOldIds(year, comp) {
@@ -1946,13 +2063,16 @@ async function axOldIds(year, comp) {
 }
 axSaveBtn.addEventListener("click", async () => {
   const p = axParsed;
-  if (!p) return;
+  if (!p || axBusy) return;
   const mode = document.querySelector('input[name="axMode"]:checked').value;
-  const combos = [...new Map(p.rows.map((r) => [r.year + "|" + r.competition, r])).values()];
-  if (mode === "replace" && !confirm(`다음 연도·대회의 기존 기록을 지우고 이 파일로 교체할까요?\n${combos.map((r) => `${r.year} ${r.competition}`).join("\n")}`)) return;
+  const combos = [...new Map(p.rows.map((r) => [r.year + "|" + r.competition, r])).values()];   // 합친 결과의 연도+대회 조합
+  const bad = p.results.filter((r) => r.error);
+  if (mode === "replace" && !confirm(`다음 연도·대회의 기존 기록을 지우고 이 파일들로 교체할까요?\n${combos.map((r) => `${r.year} ${r.competition}`).join("\n")}`)) return;
+  axBusySet(true);
   axSaveBtn.disabled = true;
   axSet(axStatus, "저장 중…");
   const inserted = [];
+  let ok = false;
   try {
     let old = [];
     if (mode === "replace") for (const r of combos) old.push(...(await axOldIds(r.year, r.competition)));   // 지울 옛 id를 먼저 기억
@@ -1971,12 +2091,15 @@ axSaveBtn.addEventListener("click", async () => {
     });
     const msg = `저장 완료: ${p.rows.length}건 등록` + (mode === "replace" ? `, 옛 기록 ${deleted}건 정리` : "");
     axSet(axStatus, failed ? msg + ` (옛 기록 ${failed}건은 지우지 못했습니다 — 권한을 확인하세요)` : msg, failed ? "error" : "success");
-    axParsed = null;
+    axPreviewEl.innerHTML = `<div style="margin:12px 0; line-height:1.7;"><b>저장 요약</b> — 파일 ${p.results.length - bad.length}개 저장 · ${p.rows.length}건` +
+      (bad.length ? `<br><span style="color:#c0392b;">제외된 파일 ${bad.length}개: ${bad.map((r) => tsEsc(r.file.name)).join(", ")}</span>` : "<br>제외된 파일 없음") + `</div>`;
+    axParsed = null; ok = true;
   } catch (e) {
     await tsChunked(inserted, (chunk) => supabase.from("sport_awards").delete().in("id", chunk));
     axSet(axStatus, e.message + " — 기존 기록은 지우지 않았습니다.", "error");
-    axSaveBtn.disabled = false;
   }
+  axBusySet(false);
+  axSaveBtn.disabled = ok || !axParsed;
   axLoadAll();
 });
 
