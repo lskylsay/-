@@ -317,16 +317,16 @@
             <div class="field">
               <label>저장 방식</label>
               <div>
-                <label style="display:block;"><input type="radio" name="tsMode" value="schools" checked> 이 학교 것만 교체 (파일에 나온 학교의 해당 학년도 자료만)</label>
+                <label style="display:block;"><input type="radio" name="tsMode" value="schools" checked> 이 학교 것만 교체 (올린 파일들에 나온 학교의 해당 학년도 자료만)</label>
                 <label style="display:block;"><input type="radio" name="tsMode" value="year"> 이 학년도 전체 교체</label>
               </div>
             </div>
           </div>
           <div class="dropzone" id="tsDropzone" tabindex="0">
-            <input type="file" id="tsFile" accept=".xlsx" class="dropzone-input">
-            <p class="dropzone-text">조사표 파일을 끌어다 놓거나 클릭하여 선택<span class="dropzone-sub">.xlsx</span></p>
+            <input type="file" id="tsFile" accept=".xlsx,.xls" multiple class="dropzone-input">
+            <p class="dropzone-text">학교별 조사표 파일을 끌어다 놓거나 클릭하여 선택 (한 번에 10개까지)<span class="dropzone-sub">.xlsx · .xls</span></p>
           </div>
-          <p id="tsFileName" class="sub" style="margin:6px 0 10px;"></p>
+          <div id="tsFileName" class="sub" style="margin:6px 0 10px;"></div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn btn-outline" id="tsPreviewBtn">미리보기</button>
             <button type="button" class="btn btn-primary" id="tsSaveBtn" disabled>저장</button>
@@ -352,13 +352,13 @@
           <h4 style="margin:12px 0 6px;">엑셀로 한꺼번에 올리기</h4>
           <div>
             <label style="margin-right:16px;"><input type="radio" name="axMode" value="add" checked> 추가 (기존 기록은 그대로)</label>
-            <label><input type="radio" name="axMode" value="replace"> 이 연도·대회 교체 (파일에 나온 연도+대회명의 기존 기록을 지우고 새로 넣기)</label>
+            <label><input type="radio" name="axMode" value="replace"> 이 연도·대회 교체 (올린 파일들에 나온 연도+대회명의 기존 기록을 지우고 새로 넣기)</label>
           </div>
           <div class="dropzone" id="axDropzone" tabindex="0" style="margin-top:8px;">
-            <input type="file" id="axFile" accept=".xlsx" class="dropzone-input">
-            <p class="dropzone-text">성과 기록 파일을 끌어다 놓거나 클릭하여 선택<span class="dropzone-sub">.xlsx</span></p>
+            <input type="file" id="axFile" accept=".xlsx,.xls" multiple class="dropzone-input">
+            <p class="dropzone-text">성과 기록 파일을 끌어다 놓거나 클릭하여 선택 (한 번에 10개까지)<span class="dropzone-sub">.xlsx · .xls</span></p>
           </div>
-          <p id="axFileName" class="sub" style="margin:6px 0 10px;"></p>
+          <div id="axFileName" class="sub" style="margin:6px 0 10px;"></div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn btn-outline" id="axPreviewBtn">미리보기</button>
             <button type="button" class="btn btn-primary" id="axSaveBtn" disabled>저장</button>
